@@ -1,9 +1,0 @@
-[project]
-name = "mbti-test"
-version = "0.1.0"
-requires-python = ">=3.11"
-
-# Vercel uses this to locate the FastAPI instance.
-[project.scripts]
-app = "app.main:app"
-
