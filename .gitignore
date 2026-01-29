@@ -32,3 +32,6 @@ Thumbs.db
 
 # Vercel
 .vercel/
+
+# Local skill output
+docs/plans/_uiux_*.txt
