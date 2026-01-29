@@ -547,8 +547,8 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
                     content = getattr(delta, "content", None)
                     if not content:
                         continue
-                    display_text = html.escape(str(content)).replace("\n", "<br/>")
-                    yield f"data: {display_text}\n\n"
+                    safe_payload = json.dumps(str(content))
+                    yield f"data: {safe_payload}\n\n"
                 except Exception as loop_err:
                     # 忽略单个 token 的异常，避免流整体中断
                     print(f"AI stream chunk error: {loop_err}")
@@ -557,7 +557,7 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
         except Exception as e:
             err_msg = str(e)
             print(f"AI Stream Error: {traceback.format_exc()}")
-            yield f"data: <span class='text-red-500'>❌ 分析中断: {html.escape(err_msg)}</span>\n\n"
+            yield f"data: {json.dumps('❌ 分析中断: ' + err_msg)}\n\n"
         finally:
             if client:
                 try:

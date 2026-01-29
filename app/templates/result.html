@@ -41,20 +41,29 @@
     </div>
   {% endif %}
 
-  <div class="card contrast">
-    <h2>AI 深度性格侧写（Layer 3）</h2>
-    <div
-      id="ai-content"
-      class="muted"
-      {# 重要：SSE 使用分享 token，而不是会话 token hash #}
-      hx-ext="sse"
-      sse-connect="/result/ai_stream/{{ share_token }}"
-      sse-swap="message"
-      hx-on:sse-error="this.innerHTML = '<p class=\\'text-red-500\\'>⚠️ 连接断开，请刷新页面重试。</p>'"
-      hx-swap="beforeend"
-    >
-      <p class="muted">正在连接 AI 咨询师...</p>
-    </div>
+  <div id="ai-container" 
+       class="prose prose-slate max-w-none text-gray-700 leading-relaxed bg-white p-6 rounded-lg shadow-sm border border-gray-100"
+       hx-ext="sse" 
+       sse-connect="/result/ai_stream/{{ share_token }}"
+       hx-on:sse-message="
+          try {
+              const newContent = JSON.parse(event.detail.data);
+              if (!this.fullText) this.fullText = '';
+              this.fullText += newContent;
+              this.innerHTML = marked.parse(this.fullText);
+          } catch (e) {
+              console.log('Non-JSON SSE data:', event.detail.data);
+          }
+       ">
+      
+      <div class="flex items-center space-x-2 text-gray-400 animate-pulse">
+          <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>正在连接 AI 咨询师...</span>
+      </div>
+  
   </div>
 
   <div class="card">
