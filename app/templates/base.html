@@ -14,6 +14,7 @@
     />
     <link rel="stylesheet" href="/static/app.css" />
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/preload.js"></script>
     <style>
       /* 顶部加载进度条 */
       .htmx-indicator {
@@ -21,10 +22,11 @@
         position: fixed;
         top: 0;
         left: 0;
-        height: 3px;
-        background: #3b82f6; /* 蓝色进度条 */
+        height: 4px;
+        background: #ef4444; /* 改为红色或醒目颜色 */
         width: 100%;
         z-index: 9999;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         animation: loading 2s infinite ease-in-out;
       }
       .htmx-request .htmx-indicator {
@@ -38,14 +40,31 @@
 
       /* 页面过渡动画（兼容不支持 View Transitions 的浏览器） */
       body {
-        transition: opacity 0.3s ease-in-out;
+        transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
       }
       .htmx-swapping {
         opacity: 0;
+        transform: translateX(-20%);
+      }
+
+      /* 定义滑入滑出动画关键帧 */
+      @keyframes slide-out-to-left {
+        to { transform: translateX(-20%); opacity: 0; }
+      }
+      @keyframes slide-in-from-right {
+        from { transform: translateX(20%); opacity: 0; }
+      }
+
+      /* 应用到 View Transitions */
+      ::view-transition-old(root) {
+        animation: slide-out-to-left 0.3s ease-in-out forwards;
+      }
+      ::view-transition-new(root) {
+        animation: slide-in-from-right 0.3s ease-in-out forwards;
       }
     </style>
   </head>
-  <body hx-boost="true" hx-indicator=".htmx-indicator">
+  <body hx-ext="preload" hx-boost="true" hx-indicator=".htmx-indicator">
     <div class="htmx-indicator"></div>
     <header class="topbar">
       <div class="container">
