@@ -493,6 +493,9 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
             api_key = os.getenv("MBTI_AI_API_KEY")
             model = os.getenv("MBTI_AI_MODEL", "gpt-3.5-turbo")
 
+            safe_host = base_url.split("/")[2] if "//" in base_url else "unknown"
+            yield f"data:  [配置检查] Model: {html.escape(str(model))} | Host: {html.escape(str(safe_host))} | base_url[:20]: {html.escape(str(base_url)[:20])}\n\n"
+
             if not api_key:
                 yield "data:  错误: 环境变量未配置 (MBTI_AI_API_KEY)\n\n"
                 return
@@ -506,7 +509,8 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
             client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
             # --- 发起请求（非流式）---
-            yield f"data: ⏳ 正在等待 AI ({html.escape(str(model))}) 生成完整报告...\n\n"
+            yield "data: ⏳ [调试模式] 正在发送请求 (stream=False)...\n\n"
+            yield f"data: ⏳ AI 正在深度思考中，请稍候（全量生成模式）... ({html.escape(str(model))})\n\n"
 
             try:
                 response = await client.chat.completions.create(
@@ -522,8 +526,23 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
                 yield f"data:  API 请求失败: {html.escape(str(api_err))}\n\n"
                 return
 
-            raw_content = ""
             try:
+                debug_raw = response.model_dump_json()
+                yield f"data:  [原始响应] {html.escape(debug_raw[:200])}...\n\n"
+                if "\"error\"" in debug_raw or "\"errors\"" in debug_raw:
+                    yield "data: ⚠️ [调试] 响应里疑似包含 error 字段（可能是“假成功”）。\n\n"
+            except Exception:
+                try:
+                    debug_raw2 = str(response)
+                    yield f"data:  [原始响应] {html.escape(debug_raw2[:200])}...\n\n"
+                except Exception:
+                    yield "data:  [原始响应] (无法序列化 response)\n\n"
+
+            raw_content = ""
+            finish_reason = "unknown"
+            try:
+                if response.choices:
+                    finish_reason = getattr(response.choices[0], "finish_reason", "unknown") or "unknown"
                 if response.choices and response.choices[0].message and response.choices[0].message.content:
                     raw_content = response.choices[0].message.content
             except Exception:
@@ -531,9 +550,9 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
 
             if raw_content:
                 safe_content = html.escape(str(raw_content)).replace("\n", "<br/>")
-                yield f"data: {safe_content}\n\n"
+                yield f"data: ✅ 分析结果: {safe_content}\n\n"
             else:
-                yield "data: ⚠️ 警告: AI 返回内容为空\n\n"
+                yield f"data: ⚠️ 警告: 内容为空! 结束原因(finish_reason): {html.escape(str(finish_reason))}\n\n"
 
         except Exception as e:
             err_msg = str(e)
