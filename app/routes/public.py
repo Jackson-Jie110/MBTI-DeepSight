@@ -456,116 +456,117 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
 
 @router.get("/result/ai_stream/{share_token}")
 async def ai_stream(request: Request, share_token: str, db: Session = Depends(get_db)):
+    # 最终整合版：灵魂侧写提示词 + 累加流式输出 + 防重连
     async def event_generator():
         client = None
 
-        # 1) 防重连：断开后等待 20 秒再重连（避免刷屏/死循环）
-        yield "retry: 20000\n\n"
-        yield "data:  [阶段1] 正在握手...\n\n"
+        # 1) 防无限重连：断开后等待 24 小时再重连
+        yield "retry: 86400000\n\n"
 
         try:
-            # --- 内部定义辅助函数 ---
-            def local_app_secret():
-                return os.getenv("MBTI_APP_SECRET", "dev-secret-change-me")
+            def local_app_secret() -> str:
+                # 兼容历史命名：优先 MBTI_APP_SECRET，其次 APP_SECRET
+                return os.getenv("MBTI_APP_SECRET") or os.getenv("APP_SECRET", "secret")
 
-            def local_hash_token(t, s):
+            def local_hash_token(token: str, secret: str) -> str:
+                # 与 app.services.tokens.hash_token 一致：sha256(secret + token)
                 digest = hashlib.sha256()
-                digest.update(str(s).encode("utf-8"))
-                digest.update(str(t).encode("utf-8"))
+                digest.update(secret.encode("utf-8"))
+                digest.update(token.encode("utf-8"))
                 return digest.hexdigest()
 
-            # --- 验证 Token ---
-            yield "data:  [阶段2] 验证身份...\n\n"
+            yield "data: [阶段1] 连接已建立，开始验证...\n\n"
+
             secret = local_app_secret()
             token_hash = local_hash_token(share_token, secret)
             test_row = db.query(Test).filter(Test.share_token_hash == token_hash).first()
-
             if not test_row:
-                yield "data:  错误: 无效的测试链接\n\n"
+                yield "data: <span class='text-red-500'>⚠️ 链接已失效，无法获取测试记录。</span>\n\n"
                 return
 
             result = test_row.result_json or {}
             type_code = result.get("type", "Unknown")
 
-            # --- 读取配置 ---
-            yield "data:  [阶段3] 读取配置...\n\n"
-            base_url = os.getenv("MBTI_AI_BASE_URL") or "https://api.openai.com/v1"
+            base_url = os.getenv("MBTI_AI_BASE_URL", "https://api.siliconflow.cn/v1")
             api_key = os.getenv("MBTI_AI_API_KEY")
-            model = os.getenv("MBTI_AI_MODEL", "gpt-3.5-turbo")
-
-            safe_host = base_url.split("/")[2] if "//" in base_url else "unknown"
-            yield f"data:  [配置检查] Model: {html.escape(str(model))} | Host: {html.escape(str(safe_host))} | base_url[:20]: {html.escape(str(base_url)[:20])}\n\n"
+            model = os.getenv("MBTI_AI_MODEL", "deepseek-ai/DeepSeek-V3")
 
             if not api_key:
-                yield "data:  错误: 环境变量未配置 (MBTI_AI_API_KEY)\n\n"
+                yield "data: ⚠️ 系统未配置 AI API Key，请联系管理员。\n\n"
                 return
 
             if AsyncOpenAI is None:
-                yield "data:  ❌ 系统错误: OpenAI SDK 不可用\n\n"
+                yield "data: <span class='text-red-500'>❌ 系统错误: OpenAI SDK 不可用</span>\n\n"
                 return
 
-            # --- 初始化客户端 ---
-            yield "data:  [阶段3.1] 初始化客户端...\n\n"
+            yield f"data: [阶段2] 准备请求 AI（{html.escape(str(model))}）...\n\n"
             client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
-            # --- 发起请求（非流式）---
-            yield "data: ⏳ [调试模式] 正在发送请求 (stream=False)...\n\n"
-            yield f"data: ⏳ AI 正在深度思考中，请稍候（全量生成模式）... ({html.escape(str(model))})\n\n"
+            system_prompt = f"""
+你是一位能够洞察灵魂的资深心理咨询师。用户已经看过关于自己 MBTI 类型 ({type_code}) 的标准教科书定义（优势、盲点、职业），请不要重复这些内容。
 
-            try:
-                response = await client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "你是一位MBTI专家。请简短分析用户的性格优势（100字以内）。"},
-                        {"role": "user", "content": f"我的类型是 {type_code}。"},
-                    ],
-                    stream=False,
-                    timeout=30.0,
-                )
-            except Exception as api_err:
-                yield f"data:  API 请求失败: {html.escape(str(api_err))}\n\n"
-                return
+请用温暖、深邃且富有文学性的语言（像一位深夜促膝长谈的老友），进行以下三个维度的深度侧写：
 
-            try:
-                debug_raw = response.model_dump_json()
-                yield f"data:  [原始响应] {html.escape(debug_raw[:200])}...\n\n"
-                if "\"error\"" in debug_raw or "\"errors\"" in debug_raw:
-                    yield "data: ⚠️ [调试] 响应里疑似包含 error 字段（可能是“假成功”）。\n\n"
-            except Exception:
+**灵魂隐喻**
+不要使用标准称呼。请为该人格创造一个独特的视觉意象（例如：“沉默的灯塔”或“风中的游吟诗人”），并解释为什么。
+
+**别人眼中的你 vs. 真实的你**
+揭示该人格常遭受的外界误解（例如：被认为冷漠、固执），并温柔地道出这些行为背后真实的善意与动机。让用户感到“终于有人懂我了”。
+
+**给你的灵魂寄语**
+一段简短、充满力量的哲理性话语。不是教导，而是关于如何与自己和解，或如何在喧嚣中找到内心的平静。
+
+要求：
+1. 使用 Markdown 格式（标题加粗）。
+2. 总字数控制在 400 字左右。
+3. 分段清晰，语气真诚。
+""".strip()
+
+            user_prompt = f"我的 MBTI 类型是：{type_code}。请开始你的深度解读。"
+
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                stream=True,
+                timeout=60.0,
+            )
+
+            yield "data: [阶段3] AI 已接通，开始输出...\n\n"
+
+            full_response = ""
+            async for chunk in stream:
                 try:
-                    debug_raw2 = str(response)
-                    yield f"data:  [原始响应] {html.escape(debug_raw2[:200])}...\n\n"
-                except Exception:
-                    yield "data:  [原始响应] (无法序列化 response)\n\n"
+                    choices = getattr(chunk, "choices", None)
+                    if not choices:
+                        continue
+                    delta = getattr(choices[0], "delta", None)
+                    if not delta:
+                        continue
+                    content = getattr(delta, "content", None)
+                    if not content:
+                        continue
 
-            raw_content = ""
-            finish_reason = "unknown"
-            try:
-                if response.choices:
-                    finish_reason = getattr(response.choices[0], "finish_reason", "unknown") or "unknown"
-                if response.choices and response.choices[0].message and response.choices[0].message.content:
-                    raw_content = response.choices[0].message.content
-            except Exception:
-                raw_content = ""
-
-            if raw_content:
-                safe_content = html.escape(str(raw_content)).replace("\n", "<br/>")
-                yield f"data: ✅ 分析结果: {safe_content}\n\n"
-            else:
-                yield f"data: ⚠️ 警告: 内容为空! 结束原因(finish_reason): {html.escape(str(finish_reason))}\n\n"
+                    full_response += str(content)
+                    display_text = html.escape(full_response).replace("\n", "<br/>")
+                    yield f"data: {display_text}\n\n"
+                except Exception as loop_err:
+                    # 忽略单个 token 的异常，避免流整体中断
+                    print(f"AI stream chunk error: {loop_err}")
+                    continue
 
         except Exception as e:
             err_msg = str(e)
-            stack = traceback.format_exc().replace("\n", " ")
-            yield f"data: <span class='text-red-500'> 严重崩溃: {html.escape(err_msg)}</span>\n\n"
-            print(f"System Error: {stack}")
+            print(f"AI Stream Error: {traceback.format_exc()}")
+            yield f"data: <span class='text-red-500'>❌ 分析中断: {html.escape(err_msg)}</span>\n\n"
         finally:
             if client:
                 try:
                     await client.close()
                 except Exception:
                     pass
-            yield "data: [分析结束]\n\n"
 
     headers = {"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
