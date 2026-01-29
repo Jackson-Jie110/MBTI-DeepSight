@@ -440,8 +440,8 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
             "type_code": type_code,
             "dimensions": [dims.get(d) for d in ["EI", "SN", "TF", "JP"] if dims.get(d)],
             "report": report,
-            "share_token": share_token,
             "share_url": str(request.base_url)[:-1] + f"/result/{share_token}",
+            "share_token": share_token,
         },
     )
 

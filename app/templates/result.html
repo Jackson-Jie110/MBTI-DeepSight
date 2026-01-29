@@ -46,6 +46,7 @@
     <div
       id="ai-content"
       class="muted"
+      {# 重要：SSE 使用分享 token，而不是会话 token hash #}
       hx-ext="sse"
       sse-connect="/result/ai_stream/{{ share_token }}"
       sse-swap="message"
