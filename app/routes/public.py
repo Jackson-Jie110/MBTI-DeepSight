@@ -536,7 +536,6 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
 
             yield "data: [阶段3] AI 已接通，开始输出...\n\n"
 
-            full_response = ""
             async for chunk in stream:
                 try:
                     choices = getattr(chunk, "choices", None)
@@ -548,9 +547,7 @@ async def ai_stream(request: Request, share_token: str, db: Session = Depends(ge
                     content = getattr(delta, "content", None)
                     if not content:
                         continue
-
-                    full_response += str(content)
-                    display_text = html.escape(full_response).replace("\n", "<br/>")
+                    display_text = html.escape(str(content)).replace("\n", "<br/>")
                     yield f"data: {display_text}\n\n"
                 except Exception as loop_err:
                     # 忽略单个 token 的异常，避免流整体中断
