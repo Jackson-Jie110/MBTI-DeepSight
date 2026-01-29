@@ -30,6 +30,31 @@
     </div>
   </div>
 
+  {% if report.insights %}
+    <div class="card contrast">
+      <h2>动态洞察（Layer 2）</h2>
+      <ul>
+        {% for i in report.insights %}
+          <li>{{ i }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="card contrast">
+    <h2>AI 深度性格侧写（Layer 3）</h2>
+    <div
+      id="ai-content"
+      class="muted"
+      hx-ext="sse"
+      sse-connect="/result/ai_stream/{{ share_token }}"
+      sse-swap="message"
+      hx-swap="beforeend"
+    >
+      <p class="muted">正在连接 AI 咨询师...</p>
+    </div>
+  </div>
+
   <div class="card">
     <h2>完整分析：{{ report.type_code }}（{{ report.title }}）</h2>
     <p>{{ report.summary }}</p>

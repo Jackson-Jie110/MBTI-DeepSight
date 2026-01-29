@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import random
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from app.models import Answer
 
 
 _DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "type_reports.json"
@@ -77,7 +80,82 @@ def build_report(type_code: str, dimensions: dict[str, Any], *, boundary_notes: 
     return "\n".join(lines)
 
 
-def build_report_context(type_code: str, dimensions: dict[str, Any], *, boundary_notes: list[str]) -> dict[str, Any]:
+def generate_dynamic_insights(dimensions: dict, answers: list[Answer]) -> list[str]:
+    insights: list[str] = []
+
+    # 维度强度检测
+    for dim, info in (dimensions or {}).items():
+        try:
+            gap = int(info.get("gap_percent"))
+        except Exception:
+            continue
+
+        if gap < 20:
+            insights.append(f"你在 {dim} 上表现得非常均衡灵活：在不同情境下能切换策略，不容易被单一偏好束缚。")
+        elif gap > 60:
+            insights.append(f"你在 {dim} 上表现出极致的倾向：你的决策与能量分配更偏向固定路径，优势突出也更需要留意盲点。")
+
+    # 核心价值观提取：从 5 分回答里抽取 2-3 条
+    fives = [
+        a
+        for a in (answers or [])
+        if getattr(a, "value", None) == 5 and getattr(getattr(a, "question", None), "text", None)
+    ]
+    if fives:
+        rng = random.Random(0)
+        k = 3 if len(fives) >= 3 else len(fives)
+        picked = rng.sample(fives, k=k)
+        texts = [str(a.question.text).strip() for a in picked if a.question and a.question.text]
+        if texts:
+            insights.append("你对以下观点持有坚定立场：" + "；".join(texts))
+
+    # 反差探测：整体倾向 vs 反向高分
+    final_pole: dict[str, str] = {}
+    for dim, info in (dimensions or {}).items():
+        first = info.get("first_pole")
+        second = info.get("second_pole")
+        fp = info.get("first_percent")
+        sp = info.get("second_percent")
+        if not (first and second and fp is not None and sp is not None):
+            continue
+        try:
+            fp_i = int(fp)
+            sp_i = int(sp)
+        except Exception:
+            continue
+        final_pole[str(dim)] = str(first) if fp_i >= sp_i else str(second)
+
+    contrast = None
+    for a in (answers or []):
+        q = getattr(a, "question", None)
+        if not q or getattr(a, "value", None) != 5:
+            continue
+        dim = getattr(q, "dimension", None)
+        agree = getattr(q, "agree_pole", None)
+        if not dim or not agree:
+            continue
+        overall = final_pole.get(str(dim))
+        if overall and str(agree) != str(overall):
+            contrast = (str(dim), str(overall), str(agree), str(getattr(q, "text", "")).strip())
+            break
+
+    if contrast:
+        dim, overall, opposite, text = contrast
+        snippet = text[:36] + ("…" if len(text) > 36 else "")
+        insights.append(
+            f"尽管你整体偏向 {overall}（{dim}），但在「{snippet}」上也展现了 {opposite} 的一面：这意味着你会在特定场景下反向发力。"
+        )
+
+    return insights
+
+
+def build_report_context(
+    type_code: str,
+    dimensions: dict[str, Any],
+    *,
+    boundary_notes: list[str],
+    answers: list[Answer] | None = None,
+) -> dict[str, Any]:
     reports = _load_type_reports()
     info = reports.get(type_code, {})
 
@@ -114,6 +192,7 @@ def build_report_context(type_code: str, dimensions: dict[str, Any], *, boundary
         "summary": summary,
         "dimensions": dim_items,
         "boundary_notes": list(boundary_notes),
+        "insights": generate_dynamic_insights(dimensions, list(answers or [])),
         "strengths": strengths,
         "blind_spots": blind_spots,
         "advice": advice,

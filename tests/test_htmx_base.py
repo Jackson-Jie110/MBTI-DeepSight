@@ -10,4 +10,4 @@ def test_base_includes_htmx_and_view_transitions(client):
     assert 'hx-boost="true"' in r.text
     assert 'hx-indicator=".htmx-indicator"' in r.text
     assert '<div class="htmx-indicator"></div>' in r.text
-
+    assert 'src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"' in r.text

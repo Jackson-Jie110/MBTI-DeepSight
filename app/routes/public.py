@@ -6,13 +6,14 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request, Query
 from fastapi import HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models import Answer, Question, Test, TestItem
 from app.seeding import seed_questions_if_empty
+from app.services import ai
 from app.services.reporting import build_report_context
 from app.services.selection import select_balanced
 from app.services.scoring import is_near_boundary, score_all
@@ -408,7 +409,12 @@ def finish_submit(
 def result_page(request: Request, share_token: str, db: Session = Depends(get_db)):
     secret = _app_secret()
     token_hash = hash_token(share_token, secret=secret)
-    test_row = db.query(Test).filter(Test.share_token_hash == token_hash).one_or_none()
+    test_row = (
+        db.query(Test)
+        .options(joinedload(Test.answers).joinedload(Answer.question))
+        .filter(Test.share_token_hash == token_hash)
+        .one_or_none()
+    )
     if not test_row or test_row.status != "completed" or not test_row.result_json:
         raise HTTPException(status_code=404, detail="结果不存在")
 
@@ -420,7 +426,12 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
     dims = result.get("dimensions") or {}
     boundary_notes = result.get("boundary_notes") or []
 
-    report = build_report_context(str(type_code), dims, boundary_notes=list(boundary_notes))
+    report = build_report_context(
+        str(type_code),
+        dims,
+        boundary_notes=list(boundary_notes),
+        answers=list(getattr(test_row, "answers", []) or []),
+    )
 
     return templates.TemplateResponse(
         request,
@@ -429,6 +440,43 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
             "type_code": type_code,
             "dimensions": [dims.get(d) for d in ["EI", "SN", "TF", "JP"] if dims.get(d)],
             "report": report,
+            "share_token": share_token,
             "share_url": str(request.base_url)[:-1] + f"/result/{share_token}",
         },
     )
+
+
+@router.get("/result/ai_stream/{share_token}")
+async def result_ai_stream(share_token: str, db: Session = Depends(get_db)):
+    secret = _app_secret()
+    token_hash = hash_token(share_token, secret=secret)
+    test_row = (
+        db.query(Test)
+        .options(joinedload(Test.answers).joinedload(Answer.question))
+        .filter(Test.share_token_hash == token_hash)
+        .one_or_none()
+    )
+    if not test_row or test_row.status != "completed" or not test_row.result_json:
+        raise HTTPException(status_code=404, detail="结果不存在")
+
+    if test_row.share_expires_at and datetime.now(timezone.utc) > _as_utc(test_row.share_expires_at):
+        raise HTTPException(status_code=404, detail="结果已过期")
+
+    result = dict(test_row.result_json)
+    type_code = result.get("type") or test_row.result_type
+    dims = result.get("dimensions") or {}
+    boundary_notes = result.get("boundary_notes") or []
+
+    report = build_report_context(
+        str(type_code),
+        dims,
+        boundary_notes=list(boundary_notes),
+        answers=list(getattr(test_row, "answers", []) or []),
+    )
+    insights = list(report.get("insights") or [])
+
+    async def _gen():
+        async for chunk in ai.generate_report_stream(str(type_code), insights):
+            yield chunk
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")

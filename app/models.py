@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -57,6 +57,13 @@ class Test(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    answers: Mapped[list["Answer"]] = relationship(
+        "Answer",
+        back_populates="test",
+        cascade="all, delete-orphan",
+        order_by="Answer.answered_at",
+    )
+
 
 class TestItem(Base):
     __tablename__ = "test_items"
@@ -81,3 +88,6 @@ class Answer(Base):
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), nullable=False, index=True)
     value: Mapped[int] = mapped_column(Integer, nullable=False)
     answered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    test: Mapped["Test"] = relationship("Test", back_populates="answers")
+    question: Mapped["Question"] = relationship("Question")
