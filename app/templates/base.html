@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
+    <meta name="view-transition" content="same-origin" />
     <title>{% block title %}MBTI 测试{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,8 +13,40 @@
       href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700&family=Varela+Round&display=swap"
     />
     <link rel="stylesheet" href="/static/app.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+      /* 顶部加载进度条 */
+      .htmx-indicator {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 3px;
+        background: #3b82f6; /* 蓝色进度条 */
+        width: 100%;
+        z-index: 9999;
+        animation: loading 2s infinite ease-in-out;
+      }
+      .htmx-request .htmx-indicator {
+        display: block;
+      }
+      @keyframes loading {
+        0% { transform: translateX(-100%); }
+        50% { transform: translateX(0); }
+        100% { transform: translateX(100%); }
+      }
+
+      /* 页面过渡动画（兼容不支持 View Transitions 的浏览器） */
+      body {
+        transition: opacity 0.3s ease-in-out;
+      }
+      .htmx-swapping {
+        opacity: 0;
+      }
+    </style>
   </head>
-  <body>
+  <body hx-boost="true" hx-indicator=".htmx-indicator">
+    <div class="htmx-indicator"></div>
     <header class="topbar">
       <div class="container">
         <a class="brand" href="/">MBTI 在线测试</a>
