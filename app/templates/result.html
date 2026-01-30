@@ -5,7 +5,11 @@
     <div class="card result-hero">
       <div class="result-hero__header">
         <h1 class="result-hero__type">
-          <span class="result-hero__type-label">你的类型：</span><span class="result-hero__typecode">{{ type_code }}</span>
+          <span class="result-hero__type-label">你的类型：</span><span
+            class="result-hero__typecode"
+            style="background-image: linear-gradient(90deg, var(--cta), var(--primary)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;"
+            >{{ type_code }}</span
+          >
         </h1>
         <p class="muted result-hero__subtitle">{{ report.title }}</p>
         <p class="muted result-hero__desc">仅展示类型、四维百分比与完整报告（不展示每题明细）。</p>
@@ -21,7 +25,7 @@
     </div>
 
     <div class="card">
-      <h2 class="card-title"><span class="card-title__text">四维百分比</span></h2>
+      <h2 class="card-title"><span class="card-title__text" style="background-image: linear-gradient(90deg, var(--text-strong), var(--cta)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;">四维百分比</span></h2>
       <div class="bars">
         {% for d in dimensions %}
           <div class="bar">
@@ -39,7 +43,7 @@
 
     {% if report.insights %}
       <div class="card contrast">
-        <h2 class="card-title"><span class="card-title__text">动态洞察</span></h2>
+        <h2 class="card-title"><span class="card-title__text" style="background-image: linear-gradient(90deg, var(--text-strong), var(--cta)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;">动态洞察</span></h2>
         <ul class="result-list">
           {% for i in report.insights %}
             <li>{{ i }}</li>
@@ -51,7 +55,7 @@
     <div id="ai-container" class="card ai-card">
       <div class="ai-card__head">
         <h2 class="ai-card__title card-title">
-          <span class="ai-card__title-gradient">AI 深度性格侧写</span>
+          <span class="ai-card__title-gradient" style="background-image: linear-gradient(90deg, var(--cta), var(--primary)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;">AI 深度性格侧写</span>
         </h2>
         <p class="muted ai-card__subtitle">基于你的类型，给出更偏“心灵侧写”的文字解读。</p>
       </div>
@@ -108,7 +112,7 @@
 
     <div class="card result-full">
       <div class="result-full__head">
-        <h2 class="card-title"><span class="card-title__text">完整分析</span></h2>
+        <h2 class="card-title"><span class="card-title__text" style="background-image: linear-gradient(90deg, var(--text-strong), var(--cta)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;">完整分析</span></h2>
         <p class="muted result-full__meta">{{ report.type_code }}（{{ report.title }}）</p>
         <p class="muted result-full__summary">{{ report.summary }}</p>
       </div>
