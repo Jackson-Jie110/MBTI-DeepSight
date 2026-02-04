@@ -2,7 +2,7 @@
 {% block title %}全息维度分析 · MBTI{% endblock %}
 
 {% block head %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -22,8 +22,8 @@
         <span class="card-title__text">六维潜能雷达图</span>
       </h2>
 
-      <div style="height: 340px; position: relative;">
-        <canvas id="radar-canvas" aria-label="六维潜能雷达图" role="img"></canvas>
+      <div class="relative w-full h-[350px] md:h-[400px] flex justify-center items-center" style="height: 350px; position: relative;">
+        <canvas id="radarChart" aria-label="六维潜能雷达图" role="img"></canvas>
       </div>
     </div>
 
@@ -35,56 +35,55 @@
   </div>
 
   <script>
-    (function () {
-      const data = {{ radar_data_json | safe }};
-      const labels = ["创造力", "执行力", "逻辑力", "共情力", "适应力", "社交力"];
-
-      const canvas = document.getElementById("radar-canvas");
+    document.addEventListener("DOMContentLoaded", function () {
+      const canvas = document.getElementById("radarChart");
       if (!canvas || typeof Chart === "undefined") return;
 
-      new Chart(canvas, {
+      let radarData = {{ radar_data_json | safe }};
+      if (!Array.isArray(radarData) || radarData.length !== 6) {
+        radarData = [50, 50, 50, 50, 50, 50];
+      }
+
+      const ctx = canvas.getContext("2d");
+      new Chart(ctx, {
         type: "radar",
         data: {
-          labels,
+          labels: ["创造力", "执行力", "逻辑力", "共情力", "适应力", "社交力"],
           datasets: [
             {
-              label: "潜能值",
-              data,
+              label: "能力潜能",
+              data: radarData,
               backgroundColor: "rgba(99, 102, 241, 0.2)",
-              borderColor: "rgba(99, 102, 241, 0.9)",
+              borderColor: "rgba(99, 102, 241, 1)",
               pointBackgroundColor: "rgba(99, 102, 241, 1)",
-              pointBorderColor: "rgba(255, 255, 255, 0.9)",
-              pointHoverBackgroundColor: "rgba(99, 102, 241, 1)",
-              pointHoverBorderColor: "rgba(255, 255, 255, 1)",
+              pointBorderColor: "#fff",
+              pointHoverBackgroundColor: "#fff",
+              pointHoverBorderColor: "rgba(99, 102, 241, 1)",
               borderWidth: 2,
-              pointRadius: 4,
-              pointBorderWidth: 2,
             },
           ],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => `${ctx.label}: ${ctx.raw}`,
-              },
-            },
-          },
           scales: {
             r: {
-              min: 0,
-              max: 100,
-              ticks: { display: false },
-              grid: { display: false },
-              angleLines: { display: true, color: "rgba(15, 23, 42, 0.12)" },
-              pointLabels: { color: "rgba(15, 23, 42, 0.82)", font: { size: 12, weight: "600" } },
+              suggestedMin: 0,
+              suggestedMax: 100,
+              angleLines: { color: "rgba(0, 0, 0, 0.05)" },
+              grid: { color: "rgba(0, 0, 0, 0.05)" },
+              pointLabels: {
+                font: { size: 12, family: "'Inter', sans-serif" },
+                color: "#4B5563",
+              },
+              ticks: { display: false, stepSize: 20 },
             },
+          },
+          plugins: {
+            legend: { display: false },
           },
         },
       });
-    })();
+    });
   </script>
 {% endblock %}
