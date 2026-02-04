@@ -53,7 +53,10 @@
     const TIE_BREAKER_POOL = {{ tie_breakers_json | safe }};
     const CSRF_TOKEN = "{{ csrf_token }}";
     let currentIndex = {{ initial_index | int }};
-    let hasAddedTieBreakers = false;
+
+    const MAX_TIE_BREAKERS = 10; // 全局最多加测题数（与后端 extra_max 保持一致）
+    const TIE_THRESHOLD = 2; // 分差 > 2 视为已区分（无需加测）
+    const addedTieBreakerCounts = { "E-I": 0, "S-N": 0, "T-F": 0, "J-P": 0 };
 
     const LABELS = {
       1: "非常不同意",
@@ -172,43 +175,55 @@
     }
 
     function checkAndSubmit() {
-      // Reached the end of current queue: check tie-break once, otherwise submit.
-      if (!hasAddedTieBreakers) {
-        const scores = calculateCurrentScores();
-        const threshold = 1; // 分差阈值（越小越严格）
-        const dims = ["EI", "SN", "TF", "JP"];
+      // Sudden Death: at the end of the queue, add 1 tie-breaker per tied dimension (up to MAX),
+      // repeat until all diffs are broken or limits are reached.
+      const scores = calculateCurrentScores();
+      const dimPairs = [
+        { dim: "EI", pair: "E-I" },
+        { dim: "SN", pair: "S-N" },
+        { dim: "TF", pair: "T-F" },
+        { dim: "JP", pair: "J-P" },
+      ];
 
-        const candidates = dims
-          .map((dim) => ({ dim, abs: Math.abs(scores[dim] || 0) }))
-          .filter((x) => x.abs <= threshold)
-          .sort((a, b) => a.abs - b.abs);
+      const existingIds = new Set(ALL_QUESTIONS.map((qq) => String(qq.id)));
+      let addedAny = false;
 
-        for (const c of candidates) {
-          const pairKey = `${c.dim[0]}-${c.dim[1]}`;
-          const pool = (TIE_BREAKER_POOL && TIE_BREAKER_POOL[pairKey]) || [];
-          if (!Array.isArray(pool) || pool.length === 0) continue;
+      for (const { dim, pair } of dimPairs) {
+        const totalAdded = Object.values(addedTieBreakerCounts).reduce((a, b) => a + Number(b || 0), 0);
+        if (totalAdded >= MAX_TIE_BREAKERS) break;
 
-          const existingIds = new Set(ALL_QUESTIONS.map((qq) => String(qq.id)));
-          const toAdd = [];
-          for (const q of pool) {
-            if (!q || q.id == null) continue;
-            if (existingIds.has(String(q.id))) continue;
-            toAdd.push(Object.assign({}, q, { is_extra: true }));
-            if (toAdd.length >= 3) break;
-          }
-          if (toAdd.length === 0) continue;
+        const diff = Math.abs(scores[dim] || 0);
+        if (diff > TIE_THRESHOLD) continue;
 
-          ALL_QUESTIONS.push(...toAdd);
-          hasAddedTieBreakers = true;
-          setHint("检测到维度得分接近，正在加载高精度测试题...");
+        const usedCount = Number(addedTieBreakerCounts[pair] || 0);
+        if (usedCount >= MAX_TIE_BREAKERS) continue;
 
-          // currentIndex should already point to the next question position (end of old queue)
-          questionContainer.classList.remove("opacity-0");
-          isAnimating = false;
-          setControlsDisabled(false);
-          render();
-          return;
+        const pool = (TIE_BREAKER_POOL && TIE_BREAKER_POOL[pair]) || [];
+        if (!Array.isArray(pool) || pool.length === 0) continue;
+
+        // Pick the next unused question (1 question per pair per check).
+        let picked = null;
+        for (const q of pool) {
+          if (!q || q.id == null) continue;
+          if (existingIds.has(String(q.id))) continue;
+          picked = q;
+          break;
         }
+        if (!picked) continue;
+
+        ALL_QUESTIONS.push(Object.assign({}, picked, { is_extra: true }));
+        existingIds.add(String(picked.id));
+        addedTieBreakerCounts[pair] = usedCount + 1;
+        addedAny = true;
+      }
+
+      if (addedAny) {
+        setHint("检测到维度得分接近，正在加载高精度测试题...");
+        questionContainer.classList.remove("opacity-0");
+        isAnimating = false;
+        setControlsDisabled(false);
+        render();
+        return;
       }
 
       submitFinalAnswers();
