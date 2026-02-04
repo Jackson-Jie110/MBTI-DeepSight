@@ -97,7 +97,11 @@
               fullText += chunk;
 
               if (typeof marked !== "undefined") {
-                contentEl.innerHTML = marked.parse(fullText);
+                // 1) 标题井号后只保留一个空格
+                // 2) 去除全角空格，避免标题缩进/解析异常
+                let cleanText = fullText.replace(/^(#{1,6})\s+/gm, "$1 ");
+                cleanText = cleanText.replace(/\u3000/g, " ");
+                contentEl.innerHTML = marked.parse(cleanText);
               } else {
                 contentEl.innerText = fullText;
               }
