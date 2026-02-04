@@ -1,6 +1,29 @@
 {% extends "base.html" %}
 {% block title %}答题 · MBTI{% endblock %}
 {% block content %}
+  <style>
+    /* Fallback for opacity transitions even if Tailwind JIT is unavailable */
+    #question-container {
+      transition: opacity 200ms ease-in-out;
+      will-change: opacity;
+    }
+    #question-container.opacity-0 {
+      opacity: 0;
+    }
+
+    /* Click feedback highlight (keeps consistent with site palette) */
+    .scale .quiz-option.is-selected {
+      border-color: rgba(139, 92, 246, 0.55);
+      background: linear-gradient(180deg, rgba(139, 92, 246, 0.22), rgba(236, 72, 153, 0.12));
+      box-shadow: var(--shadow-sm);
+      color: var(--text-strong);
+    }
+    .scale .quiz-option:disabled {
+      cursor: not-allowed;
+      opacity: 0.72;
+    }
+  </style>
+
   <div class="card" id="quiz-root">
     <div class="progress">
       <div class="badge" id="quiz-pos">第 1 / 1 题</div>
@@ -10,9 +33,10 @@
       <div class="progress-fill" id="quiz-progress" style="width: 0%"></div>
     </div>
 
-    <h2 id="quiz-question" style="min-height: 3.2em"></h2>
-
-    <div class="scale" id="quiz-scale" role="radiogroup" aria-label="选择你的同意程度"></div>
+    <div id="question-container" class="transition-opacity duration-200 ease-in-out">
+      <h2 id="quiz-question" style="min-height: 3.2em"></h2>
+      <div class="scale" id="quiz-scale" role="group" aria-label="选择你的同意程度"></div>
+    </div>
 
     <div class="divider"></div>
     <div class="row">
@@ -49,6 +73,9 @@
     const btnPrev = document.getElementById("btn-prev");
     const btnNext = document.getElementById("btn-next");
     const btnExit = document.getElementById("btn-exit");
+    const questionContainer = document.getElementById("question-container");
+
+    let isAnimating = false;
 
     function setHint(text) {
       if (!text) {
@@ -89,33 +116,26 @@
       const picked = answersById[String(q.id)] ?? answersById[q.id];
 
       for (const v of [1, 2, 3, 4, 5]) {
-        const label = document.createElement("label");
-        label.className = "option";
-
-        const input = document.createElement("input");
-        input.type = "radio";
-        input.name = "value";
-        input.value = String(v);
-        input.checked = Number(picked) === v;
-
-        input.addEventListener("change", () => {
-          answersById[q.id] = v;
-          // auto next for zero-latency feel
-          if (currentIndex < total - 1) {
-            currentIndex += 1;
-            render();
-          } else {
-            submitFinish();
-          }
-        });
-
-        const span = document.createElement("span");
-        span.textContent = LABELS[v];
-
-        label.appendChild(input);
-        label.appendChild(span);
-        elScale.appendChild(label);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "option quiz-option";
+        btn.setAttribute("data-score", String(v));
+        btn.textContent = LABELS[v];
+        if (Number(picked) === v) {
+          btn.classList.add("is-selected");
+        }
+        btn.addEventListener("click", () => selectOption(v, btn));
+        elScale.appendChild(btn);
       }
+    }
+
+    function setControlsDisabled(disabled) {
+      for (const el of elScale.querySelectorAll("button.quiz-option")) {
+        el.disabled = !!disabled;
+      }
+      btnPrev.disabled = disabled || currentIndex <= 0;
+      btnNext.disabled = !!disabled;
+      btnExit.disabled = !!disabled;
     }
 
     function requirePicked() {
@@ -126,6 +146,67 @@
         return false;
       }
       return true;
+    }
+
+    function fadeToIndex(nextIndex) {
+      if (isAnimating) return;
+      isAnimating = true;
+      setControlsDisabled(true);
+
+      // start fade out
+      questionContainer.classList.add("opacity-0");
+
+      setTimeout(() => {
+        currentIndex = nextIndex;
+        render();
+
+        // fade in on next frame for smoother transition
+        requestAnimationFrame(() => {
+          questionContainer.classList.remove("opacity-0");
+        });
+
+        isAnimating = false;
+        setControlsDisabled(false);
+      }, 200);
+    }
+
+    function selectOption(score, btn) {
+      if (isAnimating) return;
+      isAnimating = true;
+
+      const q = ALL_QUESTIONS[currentIndex];
+      answersById[q.id] = score;
+
+      // 1) immediate visual feedback
+      for (const el of elScale.querySelectorAll("button.quiz-option")) {
+        el.classList.remove("is-selected");
+      }
+      btn.classList.add("is-selected");
+
+      // 2) prevent double click during animation
+      setControlsDisabled(true);
+
+      // 3) wait a bit to let user see the highlight
+      setTimeout(() => {
+        // 4) fade out
+        questionContainer.classList.add("opacity-0");
+
+        // 5) after fade-out, switch content then fade-in
+        setTimeout(() => {
+          if (currentIndex < ALL_QUESTIONS.length - 1) {
+            currentIndex += 1;
+            render();
+            requestAnimationFrame(() => {
+              questionContainer.classList.remove("opacity-0");
+            });
+            isAnimating = false;
+            setControlsDisabled(false);
+          } else {
+            // last question: submit
+            submitFinish();
+          }
+        }, 200);
+      }, 250);
     }
 
     async function saveAll(intent) {
@@ -168,20 +249,13 @@
     }
 
     btnPrev.addEventListener("click", () => {
-      if (currentIndex > 0) {
-        currentIndex -= 1;
-        render();
-      }
+      if (currentIndex > 0) fadeToIndex(currentIndex - 1);
     });
 
     btnNext.addEventListener("click", () => {
       if (!requirePicked()) return;
-      if (currentIndex < ALL_QUESTIONS.length - 1) {
-        currentIndex += 1;
-        render();
-      } else {
-        submitFinish();
-      }
+      if (currentIndex < ALL_QUESTIONS.length - 1) return fadeToIndex(currentIndex + 1);
+      submitFinish();
     });
 
     btnExit.addEventListener("click", async () => {
