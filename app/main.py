@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from starlette.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
 from app.routes.admin import router as admin_router
@@ -20,6 +20,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+static_dir = BASE_DIR / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+(static_dir / "js").mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.include_router(public_router)
 app.include_router(admin_router)
