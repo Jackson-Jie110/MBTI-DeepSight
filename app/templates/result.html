@@ -191,7 +191,7 @@
 
       <p class="muted">{{ report.disclaimer }}</p>
       <div class="row">
-        <form action="/analysis" method="post">
+        <form action="/analysis" method="post" hx-boost="false">
           <input type="hidden" name="type" value="{{ type_code }}" />
           <input type="hidden" name="dimensions" value='{{ dimensions_json | e }}' />
           <button class="btn" type="submit">解锁更多分析</button>

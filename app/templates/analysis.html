@@ -1,10 +1,6 @@
 {% extends "base.html" %}
 {% block title %}全息维度分析 · MBTI{% endblock %}
 
-{% block head %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-{% endblock %}
-
 {% block content %}
   <div class="result-page">
     <div class="card result-hero">
@@ -34,56 +30,92 @@
     </div>
   </div>
 
+  <script
+    src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+    data-chartjs="1"
+  ></script>
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
+    (function () {
       const canvas = document.getElementById("radarChart");
-      if (!canvas || typeof Chart === "undefined") return;
+      if (!canvas) return;
 
       let radarData = {{ radar_data_json | safe }};
-      if (!Array.isArray(radarData) || radarData.length !== 6) {
-        radarData = [50, 50, 50, 50, 50, 50];
+      if (!Array.isArray(radarData) || radarData.length !== 6) radarData = [50, 50, 50, 50, 50, 50];
+
+      const chartCdn = "https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+
+      function ensureChart(ready) {
+        if (typeof Chart !== "undefined") return ready();
+
+        const existing = document.querySelector("script[data-chartjs=\"1\"]");
+        if (existing) {
+          existing.addEventListener("load", () => ready(), { once: true });
+          existing.addEventListener("error", () => {}, { once: true });
+          return;
+        }
+
+        const s = document.createElement("script");
+        s.src = chartCdn;
+        s.async = true;
+        s.dataset.chartjs = "1";
+        s.onload = () => ready();
+        document.body.appendChild(s);
       }
 
-      const ctx = canvas.getContext("2d");
-      new Chart(ctx, {
-        type: "radar",
-        data: {
-          labels: ["创造力", "执行力", "逻辑力", "共情力", "适应力", "社交力"],
-          datasets: [
-            {
-              label: "能力潜能",
-              data: radarData,
-              backgroundColor: "rgba(99, 102, 241, 0.2)",
-              borderColor: "rgba(99, 102, 241, 1)",
-              pointBackgroundColor: "rgba(99, 102, 241, 1)",
-              pointBorderColor: "#fff",
-              pointHoverBackgroundColor: "#fff",
-              pointHoverBorderColor: "rgba(99, 102, 241, 1)",
-              borderWidth: 2,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            r: {
-              suggestedMin: 0,
-              suggestedMax: 100,
-              angleLines: { color: "rgba(0, 0, 0, 0.05)" },
-              grid: { color: "rgba(0, 0, 0, 0.05)" },
-              pointLabels: {
-                font: { size: 12, family: "'Inter', sans-serif" },
-                color: "#4B5563",
+      function render() {
+        if (typeof Chart === "undefined") return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        if (window.__mbtiRadarChart) {
+          try {
+            window.__mbtiRadarChart.destroy();
+          } catch {}
+        }
+
+        window.__mbtiRadarChart = new Chart(ctx, {
+          type: "radar",
+          data: {
+            labels: ["创造力", "执行力", "逻辑力", "共情力", "适应力", "社交力"],
+            datasets: [
+              {
+                label: "能力潜能",
+                data: radarData,
+                backgroundColor: "rgba(99, 102, 241, 0.2)",
+                borderColor: "rgba(99, 102, 241, 1)",
+                pointBackgroundColor: "rgba(99, 102, 241, 1)",
+                pointBorderColor: "#fff",
+                pointHoverBackgroundColor: "#fff",
+                pointHoverBorderColor: "rgba(99, 102, 241, 1)",
+                borderWidth: 2,
               },
-              ticks: { display: false, stepSize: 20 },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: {
+                suggestedMin: 0,
+                suggestedMax: 100,
+                angleLines: { color: "rgba(0, 0, 0, 0.05)" },
+                grid: { color: "rgba(0, 0, 0, 0.05)" },
+                pointLabels: {
+                  font: { size: 12, family: "'Inter', sans-serif" },
+                  color: "#4B5563",
+                },
+                ticks: { display: false, stepSize: 20 },
+              },
+            },
+            plugins: {
+              legend: { display: false },
             },
           },
-          plugins: {
-            legend: { display: false },
-          },
-        },
-      });
-    });
+        });
+      }
+
+      ensureChart(render);
+    })();
   </script>
 {% endblock %}
