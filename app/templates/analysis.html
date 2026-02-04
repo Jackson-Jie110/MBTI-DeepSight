@@ -30,10 +30,7 @@
     </div>
   </div>
 
-  <script
-    src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
-    data-chartjs="1"
-  ></script>
+  <script src="{{ url_for('static', path='js/chart.umd.min.js') }}" data-chartjs="1"></script>
   <script>
     (function () {
       const canvas = document.getElementById("radarChart");
@@ -42,7 +39,7 @@
       let radarData = {{ radar_data_json | safe }};
       if (!Array.isArray(radarData) || radarData.length !== 6) radarData = [50, 50, 50, 50, 50, 50];
 
-      const chartCdn = "https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+      const chartSrc = "{{ url_for('static', path='js/chart.umd.min.js') }}";
 
       function ensureChart(ready) {
         if (typeof Chart !== "undefined") return ready();
@@ -55,7 +52,7 @@
         }
 
         const s = document.createElement("script");
-        s.src = chartCdn;
+        s.src = chartSrc;
         s.async = true;
         s.dataset.chartjs = "1";
         s.onload = () => ready();
