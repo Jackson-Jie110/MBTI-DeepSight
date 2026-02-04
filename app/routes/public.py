@@ -204,6 +204,28 @@ def test_page(request: Request, db: Session = Depends(get_db), pos: int | None =
             }
         )
 
+    # Tie-breaker questions pool (fallback to all active questions if no dedicated pool exists).
+    tie_rows = (
+        db.query(Question)
+        .filter(Question.is_active.is_(True), Question.source == "tie_breaker")
+        .all()
+    )
+    if not tie_rows:
+        tie_rows = db.query(Question).filter(Question.is_active.is_(True)).all()
+
+    dim_pair = {"EI": "E-I", "SN": "S-N", "TF": "T-F", "JP": "J-P"}
+    tie_breakers: dict[str, list[dict[str, object]]] = {}
+    for q in tie_rows:
+        key = dim_pair.get(str(q.dimension), str(q.dimension))
+        tie_breakers.setdefault(key, []).append(
+            {
+                "id": int(q.id),
+                "text": q.text,
+                "dimension": q.dimension,
+                "agree_pole": q.agree_pole,
+            }
+        )
+
     initial_index = 0
     for idx, it in enumerate(items):
         if int(it.question_id) not in answer_map:
@@ -220,6 +242,7 @@ def test_page(request: Request, db: Session = Depends(get_db), pos: int | None =
         {
             "questions_json": json.dumps(questions_data, ensure_ascii=False),
             "answers_json": json.dumps(answer_map, ensure_ascii=False),
+            "tie_breakers_json": json.dumps(tie_breakers, ensure_ascii=False),
             "initial_index": initial_index,
             "csrf_token": csrf,
         },
@@ -307,13 +330,67 @@ async def test_answers(request: Request, db: Session = Depends(get_db)):
                 missing = int(pos_it.position)
                 break
         if missing is not None:
-            return JSONResponse({"ok": True, "redirect": "/test", "missing_position": missing})
-        return JSONResponse({"ok": True, "redirect": "/finish"})
+            return JSONResponse({"status": "incomplete", "redirect": "/test", "missing_position": missing})
+
+        # Detect tie-break need and append extra question on server side (client renders instantly from preloaded pool).
+        items, questions = _load_test_questions(db, test_row.id)
+        answer_map = _load_answers(db, test_row.id)
+        scoring = score_all(
+            [{"id": q.id, "dimension": q.dimension, "agree_pole": q.agree_pole} for q in questions],
+            answer_map,
+        )
+        dims = scoring["dimensions"]
+
+        extra_count = sum(1 for it in items if it.is_extra)
+        if extra_count < int(test_row.extra_max):
+            near = [
+                d
+                for d in ["EI", "SN", "TF", "JP"]
+                if is_near_boundary(int(dims[d]["first_percent"]), threshold_gap_percent=10)
+            ]
+            if near:
+                used_ids = {int(it.question_id) for it in items}
+                near_sorted = sorted(near, key=lambda d: int(dims[d]["gap_percent"]))
+                for dim in near_sorted:
+                    q = (
+                        db.query(Question)
+                        .filter(
+                            Question.is_active.is_(True),
+                            Question.dimension == dim,
+                            ~Question.id.in_(used_ids),
+                        )
+                        .first()
+                    )
+                    if not q:
+                        continue
+                    new_pos = len(items) + 1
+                    db.add(TestItem(test_id=test_row.id, position=new_pos, question_id=q.id, is_extra=True))
+                    db.commit()
+
+                    pair = f"{dim[0]}-{dim[1]}"
+                    return JSONResponse(
+                        {
+                            "status": "tie_break",
+                            "dimension_pair": pair,
+                            "questions": [
+                                {
+                                    "id": int(q.id),
+                                    "text": q.text,
+                                    "dimension": q.dimension,
+                                    "agree_pole": q.agree_pole,
+                                    "position": int(new_pos),
+                                    "is_extra": True,
+                                }
+                            ],
+                        }
+                    )
+
+        return JSONResponse({"status": "complete", "redirect": "/finish"})
 
     if intent == "exit":
-        return JSONResponse({"ok": True, "redirect": "/"})
+        return JSONResponse({"status": "exit", "redirect": "/"})
 
-    return JSONResponse({"ok": True})
+    return JSONResponse({"status": "saved"})
 
 
 @router.post("/test")
@@ -417,28 +494,6 @@ def finish_page(request: Request, db: Session = Depends(get_db)):
         answer_map,
     )
     dims = scoring["dimensions"]
-
-    extra_count = sum(1 for it in items if it.is_extra)
-    if extra_count < int(test_row.extra_max):
-        near = [d for d in ["EI", "SN", "TF", "JP"] if is_near_boundary(int(dims[d]["first_percent"]), threshold_gap_percent=10)]
-        if near:
-            used_ids = {it.question_id for it in items}
-            near_sorted = sorted(near, key=lambda d: int(dims[d]["gap_percent"]))
-            for dim in near_sorted:
-                q = (
-                    db.query(Question)
-                    .filter(
-                        Question.is_active.is_(True),
-                        Question.dimension == dim,
-                        ~Question.id.in_(used_ids),
-                    )
-                    .first()
-                )
-                if q:
-                    new_pos = len(items) + 1
-                    db.add(TestItem(test_id=test_row.id, position=new_pos, question_id=q.id, is_extra=True))
-                    db.commit()
-                    return RedirectResponse(url="/test", status_code=303)
 
     csrf, should_set = _csrf_token(request)
     response = templates.TemplateResponse(

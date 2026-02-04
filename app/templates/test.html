@@ -50,6 +50,7 @@
   <script>
     const ALL_QUESTIONS = {{ questions_json | safe }};
     const EXISTING_ANSWERS = {{ answers_json | safe }};
+    const TIE_BREAKER_POOL = {{ tie_breakers_json | safe }};
     const CSRF_TOKEN = "{{ csrf_token }}";
     let currentIndex = {{ initial_index | int }};
 
@@ -62,6 +63,20 @@
     };
 
     const answersById = Object.assign({}, EXISTING_ANSWERS);
+    const tieBreakerById = (() => {
+      const map = {};
+      try {
+        for (const list of Object.values(TIE_BREAKER_POOL || {})) {
+          if (!Array.isArray(list)) continue;
+          for (const q of list) {
+            if (q && q.id != null) map[String(q.id)] = q;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      return map;
+    })();
 
     const root = document.getElementById("quiz-root");
     const elPos = document.getElementById("quiz-pos");
@@ -240,6 +255,48 @@
       setHint("正在提交作答并生成结果...");
       try {
         const data = await saveAll("finish");
+        if (data.status === "tie_break") {
+          const pair = data.dimension_pair || "";
+          setHint("检测到维度得分接近，正在加载高精度测试题...");
+
+          const added = Array.isArray(data.questions) ? data.questions : [];
+          const existingIds = new Set(ALL_QUESTIONS.map((q) => String(q.id)));
+          for (const q of added) {
+            const fromPool = q && q.id != null ? tieBreakerById[String(q.id)] : null;
+            const item = Object.assign(
+              { is_extra: true },
+              fromPool || {},
+              q || {},
+              { is_extra: true }
+            );
+            if (item.id == null) continue;
+            if (existingIds.has(String(item.id))) continue;
+            ALL_QUESTIONS.push(item);
+            existingIds.add(String(item.id));
+          }
+
+          // Move to the first newly added question
+          currentIndex = Math.min(currentIndex + 1, ALL_QUESTIONS.length - 1);
+          isAnimating = false;
+          questionContainer.classList.remove("opacity-0");
+          setControlsDisabled(false);
+          render();
+          return;
+        }
+
+        if (data.status === "incomplete") {
+          const missingPos = Number(data.missing_position || 0);
+          if (missingPos > 0) {
+            currentIndex = Math.max(0, Math.min(ALL_QUESTIONS.length - 1, missingPos - 1));
+          }
+          isAnimating = false;
+          questionContainer.classList.remove("opacity-0");
+          setControlsDisabled(false);
+          setHint("你还有未作答的题目，请完成后再生成结果。");
+          render();
+          return;
+        }
+
         const redirect = data.redirect || "/finish";
         window.location.href = redirect;
       } catch (e) {
