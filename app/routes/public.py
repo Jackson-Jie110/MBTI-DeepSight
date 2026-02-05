@@ -613,9 +613,9 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
 def _clean_ai_markdown(md: str) -> str:
     text = (md or "").replace("TAGS_SHORT_READ_WARNING false", "").replace("TAGS_SHORT_READ_WARNING true", "")
     # Normalize headings: remove leading spaces before #'s, and normalize space after hashes.
-    text = re.sub(r"^[ \t\u3000\u00A0]+(#{1,6})", r"\1", text, flags=re.MULTILINE)
-    text = re.sub(r"(#{1,6})[\s\u3000\u00A0]+", r"\1 ", text, flags=re.MULTILINE)
-    text = re.sub(r"(#{1,6} \*\*)[\s\u3000\u00A0]+", r"\1", text, flags=re.MULTILINE)
+    text = re.sub(r"^[ \t\uFE0F\u200B\u00A0\u3000]+(#{1,6})", r"\1", text, flags=re.MULTILINE)
+    text = re.sub(r"(#{1,6})[ \t\uFE0F\u200B\u00A0\u3000]+", r"\1 ", text, flags=re.MULTILINE)
+    text = re.sub(r"(#{1,6} \*\*)[ \t\uFE0F\u200B\u00A0\u3000]+", r"\1", text, flags=re.MULTILINE)
     return text.strip()
 
 
@@ -632,9 +632,12 @@ def _stream_sanitize_markdown_chunks(chunks: object, *, carry_size: int = 96):
                 continue
             combined = tail + s
             combined = combined.replace("TAGS_SHORT_READ_WARNING false", "").replace("TAGS_SHORT_READ_WARNING true", "")
-            combined = re.sub(r"(?m)^[ \t\u3000\u00A0]+(#{1,6})", r"\1", combined)
-            combined = re.sub(r"(?m)(#{1,6})[ \t\u3000\u00A0]+", r"\1 ", combined)
-            combined = re.sub(r"(?m)(#{1,6} \\*\\*)[ \t\u3000\u00A0]+", r"\1", combined)
+            # 1) Remove any leading whitespace before heading markers
+            combined = re.sub(r"(?m)^[ \t\uFE0F\u200B\u00A0\u3000]+(#{1,6})", r"\1", combined)
+            # 2) Normalize whitespace *after* hashes, including invisible unicode (VS16/ZWSP/NBSP)
+            combined = re.sub(r"(?m)^(#+)[ \t\uFE0F\u200B\u00A0\u3000]+", r"\1 ", combined)
+            # 3) Fix bold immediately after heading marker
+            combined = re.sub(r"(?m)(#{1,6} \\*\\*)[ \t\uFE0F\u200B\u00A0\u3000]+", r"\1", combined)
 
             if len(combined) <= carry_size:
                 tail = combined
