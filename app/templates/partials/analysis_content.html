@@ -6,7 +6,7 @@
 
     {% set manual = fun_data.get("manual", {}) %}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-green-50 border border-green-200 rounded-xl p-5">
+      <div class="bg-green-50 border border-green-200 rounded-xl p-5 h-full">
         <div class="flex items-center gap-2 mb-3 text-green-700 font-bold text-lg">
           <span class="bg-green-200 text-green-700 p-1 rounded text-xs">✔</span>
           正确饲养指南
@@ -18,7 +18,7 @@
         </ul>
       </div>
 
-      <div class="bg-red-50 border border-red-200 rounded-xl p-5">
+      <div class="bg-red-50 border border-red-200 rounded-xl p-5 h-full">
         <div class="flex items-center gap-2 mb-3 text-red-700 font-bold text-lg">
           <span class="text-red-600 font-bold text-xl">✕</span>
           禁忌操作预警
@@ -30,10 +30,10 @@
         </ul>
       </div>
 
-      <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 h-full">
         <div class="flex items-center gap-2 mb-3 text-blue-700 font-bold text-lg">
-          <span class="text-xl"></span>
-          快速充电方式
+          <span class="text-xl">🔋</span>
+          <span>快速充电方式</span>
         </div>
         <div class="text-blue-800 text-sm leading-relaxed">
           {{ manual.get("recharge", "") }}
