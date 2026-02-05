@@ -73,8 +73,8 @@
 
         // 1) Create crystal-like gradient (Indigo -> Pink)
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, "rgba(99, 102, 241, 0.7)"); // Indigo-500
-        gradient.addColorStop(1, "rgba(236, 72, 153, 0.4)"); // Pink-500
+        gradient.addColorStop(0, "rgba(99, 102, 241, 0.7)"); // Indigo-500 (Top)
+        gradient.addColorStop(1, "rgba(236, 72, 153, 0.4)"); // Pink-500 (Bottom)
 
         window.__mbtiRadarChart = new Chart(ctx, {
           type: "radar",
@@ -88,14 +88,14 @@
                 fill: true,
                 borderColor: "rgba(255, 255, 255, 0.9)",
                 borderWidth: 3,
-                tension: 0.4,
+                tension: 0,
                 pointBackgroundColor: "#fff",
-                pointBorderColor: "rgba(236, 72, 153, 1)",
+                pointBorderColor: "rgba(99, 102, 241, 1)",
                 pointBorderWidth: 2,
                 pointRadius: 4,
                 pointHoverRadius: 6,
                 pointHoverBackgroundColor: "#fff",
-                pointHoverBorderColor: "rgba(99, 102, 241, 1)",
+                pointHoverBorderColor: "rgba(236, 72, 153, 1)",
               },
             ],
           },
@@ -107,7 +107,7 @@
                 suggestedMin: 0,
                 suggestedMax: 100,
                 grid: {
-                  circular: true,
+                  circular: false,
                   color: "rgba(0, 0, 0, 0.05)",
                   lineWidth: 1,
                 },
@@ -124,11 +124,14 @@
               tooltip: {
                 backgroundColor: "rgba(255, 255, 255, 0.9)",
                 titleColor: "#1f2937",
-                bodyColor: "#4b5563",
+                bodyColor: "#6366f1",
                 borderColor: "#e5e7eb",
                 borderWidth: 1,
                 displayColors: false,
                 padding: 10,
+                callbacks: {
+                  label: (context) => `${context.parsed.r} 分`,
+                },
               },
             },
           },
