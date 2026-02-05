@@ -644,52 +644,37 @@ def _rpg_radar_from_dimensions(dims: dict[str, object]) -> list[int]:
     return [creativity, execution, logic, empathy, adaptability, social]
 
 
-def _closest_conflict_dimension(dims: dict[str, object]) -> dict[str, object]:
-    best: dict[str, object] | None = None
-    for dim_key in ("EI", "SN", "TF", "JP"):
-        raw = dims.get(dim_key)
-        if not isinstance(raw, dict):
-            continue
-        try:
-            first_pole = str(raw.get("first_pole") or "")
-            second_pole = str(raw.get("second_pole") or "")
-            first_percent = int(raw.get("first_percent"))
-            second_percent = int(raw.get("second_percent"))
-            gap = abs(first_percent - second_percent)
-        except Exception:
-            continue
-
-        cur = {
-            "dimension": dim_key,
-            "first_pole": first_pole,
-            "second_pole": second_pole,
-            "first_percent": max(0, min(100, first_percent)),
-            "second_percent": max(0, min(100, second_percent)),
-            "gap_percent": max(0, min(100, gap)),
-        }
-        if best is None or int(cur["gap_percent"]) < int(best["gap_percent"]):
-            best = cur
-
-    return best or {
-        "dimension": "TF",
-        "first_pole": "T",
-        "second_pole": "F",
-        "first_percent": 50,
-        "second_percent": 50,
-        "gap_percent": 0,
-    }
+def get_conflict_pair(dimensions: dict[str, int]) -> tuple[str, str]:
+    pairs = [("E", "I"), ("S", "N"), ("T", "F"), ("J", "P")]
+    best_pair: tuple[str, str] = ("T", "F")
+    best_gap = 10**9
+    for a, b in pairs:
+        va = int(dimensions.get(a, 50))
+        vb = int(dimensions.get(b, 50))
+        gap = abs(va - vb)
+        if gap < best_gap:
+            best_gap = gap
+            best_pair = (a, b)
+    return best_pair
 
 
-def _fallback_fun_analysis(type_code: str, conflict_pair: str) -> dict[str, object]:
+def get_fallback_data(error_msg: str) -> dict[str, object]:
+    safe_err = (error_msg or "").strip()
+    if len(safe_err) > 220:
+        safe_err = safe_err[:220] + "..."
+
     return {
         "manual": {
-            "do_list": ["先确认他的感受，再讨论结论", "给他一点独处与缓冲时间", "用具体例子说话"],
-            "dont_list": ["当众逼问表态", "用“你怎么这么敏感/冷漠”贴标签", "临时改计划不说明原因"],
-            "recharge": "在安静空间独处一会儿，做一件可控的小事。",
+            "do_list": ["(系统) AI 生成失败", "请检查后端日志", "错误详情见下方"],
+            "dont_list": ["不要惊慌", "不要频繁刷新", "不要泄露密钥信息"],
+            "recharge": f"错误追踪: {safe_err}",
         },
         "war": {
-            "title": f"{conflict_pair} 的拉扯",
-            "description": "你的内心像一场拔河：一边想要确定与秩序，一边渴望自由与柔软。学会让两者轮流执勤，你会更稳定也更有力量。",
+            "title": "系统异常 vs 调试模式",
+            "description": (
+                f"API 调用或解析失败。具体原因：{safe_err}。"
+                "请检查 API Key 余额、网络连接、Base URL 或 JSON 格式约束。"
+            ),
         },
     }
 
@@ -707,123 +692,192 @@ def _extract_json_object(text: str) -> str | None:
     return s[start : end + 1]
 
 
-async def _generate_fun_analysis(type_code: str, conflict: dict[str, object]) -> dict[str, object]:
-    if AsyncOpenAI is None:
-        return _fallback_fun_analysis(type_code, f"{conflict.get('first_pole')} vs {conflict.get('second_pole')}")
+def _normalize_letter_dimensions(dimensions_obj: object) -> dict[str, int]:
+    # Accept either:
+    # 1) {"E":60,"I":40,...} or
+    # 2) {"EI":{"first_pole":"E","first_percent":60,"second_pole":"I","second_percent":40}, ...}
+    out: dict[str, int] = {}
+    if isinstance(dimensions_obj, dict):
+        # direct letters
+        letter_keys = {"E", "I", "S", "N", "T", "F", "J", "P"}
+        if any(k in dimensions_obj for k in letter_keys):
+            for k in letter_keys:
+                v = dimensions_obj.get(k)
+                try:
+                    out[k] = max(0, min(100, int(v)))
+                except Exception:
+                    out[k] = 50
+        else:
+            for dim_key in ("EI", "SN", "TF", "JP"):
+                raw = dimensions_obj.get(dim_key)
+                if not isinstance(raw, dict):
+                    continue
+                try:
+                    fpole = str(raw.get("first_pole"))
+                    spole = str(raw.get("second_pole"))
+                    fp = int(raw.get("first_percent"))
+                    sp = int(raw.get("second_percent"))
+                except Exception:
+                    continue
+                out[fpole] = max(0, min(100, fp))
+                out[spole] = max(0, min(100, sp))
 
-    api_key = os.getenv("MBTI_AI_API_KEY")
-    base_url = os.getenv("MBTI_AI_BASE_URL", "https://api.siliconflow.cn/v1")
-    model = os.getenv("MBTI_AI_MODEL", "deepseek-ai/DeepSeek-V3")
-    if not api_key:
-        return _fallback_fun_analysis(type_code, f"{conflict.get('first_pole')} vs {conflict.get('second_pole')}")
+    # Ensure all exist.
+    for k in ("E", "I", "S", "N", "T", "F", "J", "P"):
+        out.setdefault(k, 50)
+    return out
 
-    first_pole = str(conflict.get("first_pole") or "")
-    second_pole = str(conflict.get("second_pole") or "")
-    fp = int(conflict.get("first_percent") or 50)
-    sp = int(conflict.get("second_percent") or 50)
+
+def _rpg_radar_from_letter_dimensions(dimensions: dict[str, int]) -> list[int]:
+    def clamp(v: float) -> int:
+        return int(max(0, min(100, round(v))))
+
+    e = int(dimensions.get("E", 50))
+    s = int(dimensions.get("S", 50))
+    n = int(dimensions.get("N", 50))
+    t = int(dimensions.get("T", 50))
+    f = int(dimensions.get("F", 50))
+    j = int(dimensions.get("J", 50))
+    p = int(dimensions.get("P", 50))
+
+    creativity = clamp(n * 0.8 + p * 0.2)
+    execution = clamp(j * 0.8 + s * 0.2)
+    logic = clamp(t)
+    empathy = clamp(f)
+    adaptability = clamp(p)
+    social = clamp(e)
+    return [creativity, execution, logic, empathy, adaptability, social]
+
+
+async def _analysis_template(request: Request, mbti_type: str, dimensions_json: str) -> HTMLResponse:
+    try:
+        parsed = json.loads(dimensions_json)
+    except Exception as e:
+        parsed = {}
+        fun_data = get_fallback_data(f"dimensions 解析失败: {e}")
+        return templates.TemplateResponse(
+            request,
+            "analysis.html",
+            {
+                "type_code": mbti_type,
+                "radar_data_json": json.dumps([50, 50, 50, 50, 50, 50], ensure_ascii=False),
+                "fun_analysis": fun_data,
+                "conflict_pair": "T vs F",
+                "war_left_pole": "T",
+                "war_left_percent": 50,
+                "war_right_pole": "F",
+                "war_right_percent": 50,
+            },
+        )
+
+    letter_dims = _normalize_letter_dimensions(parsed)
+    conflict_pair = get_conflict_pair(letter_dims)
+    val1 = int(letter_dims.get(conflict_pair[0], 50))
+    val2 = int(letter_dims.get(conflict_pair[1], 50))
+
+    # Versus bar widths must sum to 100.
+    total = max(1, val1 + val2)
+    left_percent = int(round(val1 / total * 100))
+    right_percent = 100 - left_percent
+    if val2 > val1:
+        # Swap for dominant on the left.
+        conflict_pair = (conflict_pair[1], conflict_pair[0])
+        val1, val2 = val2, val1
+        left_percent, right_percent = right_percent, left_percent
+
+    radar_data = _rpg_radar_from_letter_dimensions(letter_dims)
 
     prompt = f"""
-你是一个输出严格 JSON 的生成器。你必须只输出 1 个合法 JSON 对象，不能包含任何多余字符、解释、前后缀、Markdown、代码块。
+用户MBTI: {mbti_type}
+各维度分值: {json.dumps(letter_dims, ensure_ascii=False)}
+内心最冲突的维度: {conflict_pair[0]} (score: {val1}) vs {conflict_pair[1]} (score: {val2}) - 分值极度接近。
 
-用户 MBTI 类型：{type_code}
-冲突战场：{first_pole}({fp}%) vs {second_pole}({sp}%)
-
-请输出如下结构（键名必须完全一致）：
+请基于以上数据，生成“用户使用说明书”和“内心维度战争”分析。
+必须严格输出纯 JSON 格式，无 Markdown：
 {{
-  "manual": {{
-    "do_list": ["..."],
-    "dont_list": ["..."],
-    "recharge": "..."
-  }},
-  "war": {{
-    "title": "...",
-    "description": "..."
-  }}
+    "manual": {{
+        "do_list": ["3个让该用户感到被理解的行为"],
+        "dont_list": ["3个该用户的绝对雷区"],
+        "recharge": "1个具体的快速回血方式"
+    }},
+    "war": {{
+        "title": "冲突维度的具象化比喻 (如：理性的暴君 vs 感性的诗人)",
+        "description": "深度分析这种纠结带来的困扰与优势。"
+    }}
 }}
-
-约束：
-1) do_list / dont_list 各 3-5 条，中文，具体可执行。
-2) recharge 1 句话，<= 25 字。
-3) title <= 18 字，要有画面感；description 80-140 字，描写内耗与和解建议。
-4) 严禁输出 null，严禁输出除上述键以外的新键。
 """.strip()
 
-    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    fun_data: dict[str, object]
     try:
-        resp = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You output JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            stream=False,
-            timeout=30.0,
-        )
+        if AsyncOpenAI is None:
+            raise RuntimeError("OpenAI SDK 未安装或导入失败")
+
+        api_key = os.getenv("MBTI_AI_API_KEY")
+        if not api_key:
+            raise RuntimeError("未配置 MBTI_AI_API_KEY")
+
+        base_url = os.getenv("MBTI_AI_BASE_URL", "https://api.siliconflow.cn/v1")
+        model = os.getenv("MBTI_AI_MODEL", "deepseek-ai/DeepSeek-V3")
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        try:
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "你必须只输出纯 JSON。"},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=False,
+                timeout=30.0,
+            )
+        finally:
+            try:
+                await client.close()
+            except Exception:
+                pass
+
         content = ""
         try:
             content = resp.choices[0].message.content or ""
-        except Exception:
-            content = ""
+        except Exception as e:
+            raise RuntimeError(f"AI 响应为空或结构异常: {e}") from e
 
-        extracted = _extract_json_object(content)
-        if not extracted:
-            return _fallback_fun_analysis(type_code, f"{first_pole} vs {second_pole}")
         try:
-            data = json.loads(extracted)
+            fun_data_obj = json.loads(content)
         except Exception:
-            return _fallback_fun_analysis(type_code, f"{first_pole} vs {second_pole}")
+            extracted = _extract_json_object(content)
+            if not extracted:
+                raise ValueError("AI 未返回可解析的 JSON 对象")
+            fun_data_obj = json.loads(extracted)
 
-        if not isinstance(data, dict):
-            return _fallback_fun_analysis(type_code, f"{first_pole} vs {second_pole}")
-        if not isinstance(data.get("manual"), dict) or not isinstance(data.get("war"), dict):
-            return _fallback_fun_analysis(type_code, f"{first_pole} vs {second_pole}")
-        return data
-    except Exception:
-        return _fallback_fun_analysis(type_code, f"{first_pole} vs {second_pole}")
-    finally:
-        try:
-            await client.close()
-        except Exception:
-            pass
+        if not isinstance(fun_data_obj, dict):
+            raise ValueError("AI JSON 顶层不是对象")
+        manual = fun_data_obj.get("manual")
+        war = fun_data_obj.get("war")
+        if not isinstance(manual, dict) or not isinstance(war, dict):
+            raise ValueError("AI JSON 缺少 manual/war 对象")
+        if not isinstance(manual.get("do_list"), list) or not isinstance(manual.get("dont_list"), list):
+            raise ValueError("manual.do_list / manual.dont_list 必须是数组")
+        if not isinstance(manual.get("recharge"), str) or not manual.get("recharge"):
+            raise ValueError("manual.recharge 必须是非空字符串")
+        if not isinstance(war.get("title"), str) or not isinstance(war.get("description"), str):
+            raise ValueError("war.title / war.description 必须是字符串")
 
-
-async def _analysis_template(request: Request, type_code: str, dimensions_json: str) -> HTMLResponse:
-    try:
-        dims = json.loads(dimensions_json)
-        if not isinstance(dims, dict):
-            dims = {}
-    except Exception:
-        dims = {}
-
-    radar_data = _rpg_radar_from_dimensions(dims) if dims else [50, 50, 50, 50, 50, 50]
-    conflict = _closest_conflict_dimension(dims) if dims else _closest_conflict_dimension({})
-
-    # For Versus Bar: left is dominant pole (indigo), right is the weaker pole (pink).
-    fp = int(conflict.get("first_percent") or 50)
-    sp = int(conflict.get("second_percent") or 50)
-    first_pole = str(conflict.get("first_pole") or "")
-    second_pole = str(conflict.get("second_pole") or "")
-    if fp >= sp:
-        war_left = {"pole": first_pole, "percent": fp}
-        war_right = {"pole": second_pole, "percent": sp}
-    else:
-        war_left = {"pole": second_pole, "percent": sp}
-        war_right = {"pole": first_pole, "percent": fp}
-
-    fun_analysis = await _generate_fun_analysis(type_code, conflict)
+        fun_data = fun_data_obj
+    except Exception as e:
+        fun_data = get_fallback_data(str(e))
 
     return templates.TemplateResponse(
         request,
         "analysis.html",
         {
-            "type_code": type_code,
+            "type_code": mbti_type,
             "radar_data_json": json.dumps(radar_data, ensure_ascii=False),
-            "fun_analysis": fun_analysis,
-            "conflict_pair": f"{first_pole} vs {second_pole}",
-            "war_left_pole": war_left["pole"],
-            "war_left_percent": int(war_left["percent"]),
-            "war_right_pole": war_right["pole"],
-            "war_right_percent": int(war_right["percent"]),
+            "fun_analysis": fun_data,
+            "conflict_pair": f"{conflict_pair[0]} vs {conflict_pair[1]}",
+            "war_left_pole": conflict_pair[0],
+            "war_left_percent": left_percent,
+            "war_right_pole": conflict_pair[1],
+            "war_right_percent": right_percent,
         },
     )
 
