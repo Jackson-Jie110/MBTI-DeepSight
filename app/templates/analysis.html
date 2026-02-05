@@ -71,11 +71,6 @@
           } catch {}
         }
 
-        // 1) Create crystal-like gradient (Indigo -> Pink)
-        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, "rgba(99, 102, 241, 0.7)"); // Indigo-500 (Top)
-        gradient.addColorStop(1, "rgba(236, 72, 153, 0.4)"); // Pink-500 (Bottom)
-
         window.__mbtiRadarChart = new Chart(ctx, {
           type: "radar",
           data: {
@@ -84,18 +79,17 @@
               {
                 label: "能力潜能",
                 data: radarData,
-                backgroundColor: gradient,
+                backgroundColor: "rgba(99, 102, 241, 0.2)",
                 fill: true,
-                borderColor: "rgba(255, 255, 255, 0.9)",
-                borderWidth: 3,
+                borderColor: "#6366f1",
+                borderWidth: 2,
                 tension: 0,
-                pointBackgroundColor: "#fff",
-                pointBorderColor: "rgba(99, 102, 241, 1)",
-                pointBorderWidth: 2,
+                pointBackgroundColor: "#6366f1",
+                pointBorderColor: "#fff",
                 pointRadius: 4,
                 pointHoverRadius: 6,
                 pointHoverBackgroundColor: "#fff",
-                pointHoverBorderColor: "rgba(236, 72, 153, 1)",
+                pointHoverBorderColor: "#6366f1",
               },
             ],
           },
@@ -109,30 +103,17 @@
                 grid: {
                   circular: false,
                   color: "rgba(0, 0, 0, 0.05)",
-                  lineWidth: 1,
                 },
                 angleLines: { color: "rgba(0, 0, 0, 0.05)" },
                 pointLabels: {
-                  font: { size: 13, family: "'Inter', sans-serif", weight: "600" },
-                  color: "#6366f1",
+                  font: { size: 12, family: "'Inter', sans-serif" },
+                  color: "#4b5563",
                 },
                 ticks: { display: false, stepSize: 20 },
               },
             },
             plugins: {
               legend: { display: false },
-              tooltip: {
-                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                titleColor: "#1f2937",
-                bodyColor: "#6366f1",
-                borderColor: "#e5e7eb",
-                borderWidth: 1,
-                displayColors: false,
-                padding: 10,
-                callbacks: {
-                  label: (context) => `${context.parsed.r} 分`,
-                },
-              },
             },
           },
         });
