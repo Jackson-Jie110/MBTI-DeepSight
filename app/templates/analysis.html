@@ -158,7 +158,10 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const apiUrl = "{{ analysis_stream_url }}";
-      window.loadStream?.(apiUrl, "analysis-result-box", "analysis-loading-box");
+      const basePayload = {{ analysis_stream_payload_json | safe }};
+      const params = Object.fromEntries(new URLSearchParams(window.location.search));
+      const payload = Object.assign({}, basePayload, params);
+      window.loadStream?.(apiUrl, "analysis-result-box", "analysis-loading-box", payload);
     });
   </script>
 {% endblock %}

@@ -171,7 +171,8 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const apiUrl = "{{ result_ai_stream_url }}";
-      window.loadStream?.(apiUrl, "ai-result-box", "ai-loading-box");
+      const params = Object.fromEntries(new URLSearchParams(window.location.search));
+      window.loadStream?.(apiUrl, "ai-result-box", "ai-loading-box", params);
     });
   </script>
 {% endblock %}

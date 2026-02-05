@@ -21,7 +21,14 @@ function cleanMarkdownText(text) {
     .replace(/(#{1,6} \*\*)[\s\u3000\u00A0]+/gm, "$1");
 }
 
-async function loadStream(url, targetId, loadingId) {
+/**
+ * 流式加载 Markdown 内容
+ * @param {string} url - API 地址
+ * @param {string} targetId - 内容显示容器 ID
+ * @param {string} loadingId - 加载动画容器 ID
+ * @param {object|null} payload - 可选：POST 的 JSON 数据；若提供则使用 POST
+ */
+async function loadStream(url, targetId, loadingId, payload = null) {
   const target = document.getElementById(targetId);
   const loading = document.getElementById(loadingId);
   if (!target) return;
@@ -33,8 +40,16 @@ async function loadStream(url, targetId, loadingId) {
     }
   };
 
+  const fetchOptions = payload
+    ? {
+        method: "POST",
+        headers: { Accept: "text/plain", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    : { method: "GET", headers: { Accept: "text/plain" } };
+
   try {
-    const response = await fetch(url, { headers: { Accept: "text/plain" } });
+    const response = await fetch(url, fetchOptions);
     if (!response.ok) {
       const t = await response.text();
       throw new Error(`${response.status} ${t || response.statusText}`);
@@ -79,4 +94,3 @@ async function loadStream(url, targetId, loadingId) {
 }
 
 window.loadStream = loadStream;
-

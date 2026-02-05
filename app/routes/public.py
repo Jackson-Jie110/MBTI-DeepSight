@@ -630,7 +630,12 @@ def _markdown_to_html(md: str) -> str:
         return markdown.markdown(safe_md)
 
 
-@router.get("/result/ai_content/{share_token}", response_class=HTMLResponse, name="result_ai_content")
+@router.api_route(
+    "/result/ai_content/{share_token}",
+    methods=["GET", "POST"],
+    response_class=HTMLResponse,
+    name="result_ai_content",
+)
 async def result_ai_content(request: Request, share_token: str, db: Session = Depends(get_db)):
     secret = _app_secret()
     token_hash = hash_token(share_token, secret=secret)
@@ -1017,7 +1022,7 @@ def analysis_page_get(
 
     core = _analysis_core(type_code, dimensions)
     base = str(request.url_for("analysis_async_content"))
-    analysis_stream_url = f"{base}?type={quote_plus(type_code)}&dimensions={quote_plus(dimensions)}"
+    analysis_stream_url = base
 
     return templates.TemplateResponse(
         request,
@@ -1027,6 +1032,10 @@ def analysis_page_get(
             "mbti_type": type_code,
             "radar_data_json": json.dumps(core["radar_data"], ensure_ascii=False),
             "analysis_stream_url": analysis_stream_url,
+            "analysis_stream_payload_json": json.dumps(
+                {"type": type_code, "dimensions": dimensions},
+                ensure_ascii=False,
+            ),
         },
     )
 
@@ -1043,7 +1052,7 @@ def analysis_page_post(
 
     core = _analysis_core(type_code, dimensions)
     base = str(request.url_for("analysis_async_content"))
-    analysis_stream_url = f"{base}?type={quote_plus(type_code)}&dimensions={quote_plus(dimensions)}"
+    analysis_stream_url = base
 
     return templates.TemplateResponse(
         request,
@@ -1053,21 +1062,47 @@ def analysis_page_post(
             "mbti_type": type_code,
             "radar_data_json": json.dumps(core["radar_data"], ensure_ascii=False),
             "analysis_stream_url": analysis_stream_url,
+            "analysis_stream_payload_json": json.dumps(
+                {"type": type_code, "dimensions": dimensions},
+                ensure_ascii=False,
+            ),
         },
     )
 
 
-@router.get("/analysis/content", response_class=HTMLResponse, name="analysis_async_content")
+@router.api_route("/analysis/content", methods=["GET", "POST"], response_class=HTMLResponse, name="analysis_async_content")
 async def analysis_async_content(
     request: Request,
     db: Session = Depends(get_db),
     type_code: str = Query("", alias="type"),
     dimensions: str | None = Query(None),
 ):
-    if not type_code or not dimensions:
+    data: dict[str, object] = {}
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                data = body
+        except Exception:
+            data = {}
+
+    mbti_type = str(data.get("type") or type_code or "")
+    raw_dimensions = data.get("dimensions") if "dimensions" in data else dimensions
+
+    if isinstance(raw_dimensions, str):
+        dimensions_json = raw_dimensions
+    elif raw_dimensions is None:
+        dimensions_json = "{}"
+    else:
+        try:
+            dimensions_json = json.dumps(raw_dimensions, ensure_ascii=False)
+        except Exception:
+            dimensions_json = "{}"
+
+    if not mbti_type or not dimensions_json:
         return HTMLResponse("", status_code=400)
 
-    core = _analysis_core(type_code, dimensions)
+    core = _analysis_core(mbti_type, dimensions_json)
     conflict_pair = core["conflict_pair"]
     val1 = int(core["val1"])
     val2 = int(core["val2"])
@@ -1088,7 +1123,7 @@ async def analysis_async_content(
 ### ⚔️ 维度战争：一句话比喻标题
 (80-140 字，写出内耗的困扰与优势，并给出温柔的和解建议)
 
-用户MBTI: {type_code}
+用户MBTI: {mbti_type}
 各维度分值: {json.dumps(letter_dims, ensure_ascii=False)}
 内心最冲突的维度: {conflict_pair[0]} (score: {val1}) vs {conflict_pair[1]} (score: {val2}) - 分值极度接近。
 """.strip()
