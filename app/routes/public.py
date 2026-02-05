@@ -5,6 +5,7 @@ import html
 import hashlib
 import json
 import os
+import re
 import traceback
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -22,6 +23,11 @@ from app.services.reporting import build_report_context
 from app.services.selection import select_balanced
 from app.services.scoring import is_near_boundary, score_all
 from app.services.tokens import expiry_from_choice, hash_token, new_url_token
+
+try:
+    import markdown  # type: ignore
+except Exception:  # pragma: no cover
+    markdown = None
 
 try:
     from openai import AsyncOpenAI
@@ -599,7 +605,211 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
             "report": report,
             "share_url": str(request.base_url)[:-1] + f"/result/{share_token}",
             "share_token": share_token,
+            "result_ai_async_url": str(request.url_for("result_ai_content", share_token=share_token)),
         },
+    )
+
+
+def _clean_ai_markdown(md: str) -> str:
+    text = (md or "").replace("TAGS_SHORT_READ_WARNING false", "").replace("TAGS_SHORT_READ_WARNING true", "")
+    # Normalize headings: remove leading spaces before #'s, and normalize space after hashes.
+    text = re.sub(r"^\s+(#{1,6})", r"\1", text, flags=re.MULTILINE)
+    text = re.sub(r"(#{1,6})[\s\u3000\u00A0]+", r"\1 ", text, flags=re.MULTILINE)
+    text = re.sub(r"(#{1,6} \*\*)[\s\u3000\u00A0]+", r"\1", text, flags=re.MULTILINE)
+    return text.strip()
+
+
+def _markdown_to_html(md: str) -> str:
+    # Escape raw HTML first to avoid injection, while keeping Markdown syntax intact.
+    safe_md = html.escape(md or "")
+    if markdown is None:
+        return "<pre>" + safe_md + "</pre>"
+    try:
+        return markdown.markdown(safe_md, extensions=["extra", "nl2br"])
+    except Exception:
+        return markdown.markdown(safe_md)
+
+
+@router.get("/result/ai_content/{share_token}", response_class=HTMLResponse, name="result_ai_content")
+async def result_ai_content(request: Request, share_token: str, db: Session = Depends(get_db)):
+    secret = _app_secret()
+    token_hash = hash_token(share_token, secret=secret)
+    test_row = (
+        db.query(Test)
+        .options(joinedload(Test.answers).joinedload(Answer.question))
+        .filter(Test.share_token_hash == token_hash)
+        .one_or_none()
+    )
+    if not test_row or test_row.status != "completed" or not test_row.result_json:
+        return templates.TemplateResponse(
+            request,
+            "partials/result_ai_content.html",
+            {"ai_content_html": _markdown_to_html("**⚠️ 结果不存在或已失效。**")},
+        )
+
+    if test_row.share_expires_at and datetime.now(timezone.utc) > _as_utc(test_row.share_expires_at):
+        return templates.TemplateResponse(
+            request,
+            "partials/result_ai_content.html",
+            {"ai_content_html": _markdown_to_html("**⚠️ 分享链接已过期。**")},
+        )
+
+    result = test_row.result_json or {}
+    type_code = str(result.get("type") or test_row.result_type or "Unknown")
+    dims: dict[str, dict] = dict(result.get("dimensions") or {})
+    boundary_notes = list(result.get("boundary_notes") or [])
+    answers = list(getattr(test_row, "answers", []) or [])
+
+    def _dimensions_str() -> str:
+        parts: list[str] = []
+        for dim in ["EI", "SN", "TF", "JP"]:
+            info = dims.get(dim) or {}
+            fp = info.get("first_percent")
+            sp = info.get("second_percent")
+            first = info.get("first_pole")
+            second = info.get("second_pole")
+            if fp is None or sp is None or not first or not second:
+                continue
+            parts.append(f"{first}:{fp}% / {second}:{sp}%")
+        return ", ".join(parts) if parts else "维度数据缺失"
+
+    def _extremes_str() -> str:
+        items: list[str] = []
+        for idx, a in enumerate(answers, start=1):
+            try:
+                v = int(getattr(a, "value", 0))
+            except Exception:
+                continue
+            if v not in (1, 5):
+                continue
+            q = getattr(a, "question", None)
+            if not q:
+                continue
+            text = str(getattr(q, "text", "") or "").strip()
+            dim = str(getattr(q, "dimension", "") or "").strip()
+            agree = str(getattr(q, "agree_pole", "") or "").strip()
+            if len(dim) == 2 and len(agree) == 1:
+                opposite = dim[1] if dim[0] == agree else (dim[0] if dim[1] == agree else "?")
+            else:
+                opposite = "?"
+            pole = agree if v == 5 else opposite
+            snippet = text[:48] + ("…" if len(text) > 48 else "")
+            items.append(f"{idx}. [{dim}/{pole}向] {v}分：{snippet}")
+            if len(items) >= 6:
+                break
+        return "；".join(items) if items else "未发现明显的极值作答（1分/5分）"
+
+    insight_list = build_report_context(
+        type_code,
+        dims,
+        boundary_notes=boundary_notes,
+        answers=answers,
+    ).get("insights", [])
+    insight_list = [str(x).strip() for x in (insight_list or []) if str(x).strip()]
+
+    tags: list[str] = []
+    for dim, info in (dims or {}).items():
+        try:
+            gap = int(info.get("gap_percent"))
+        except Exception:
+            continue
+        if gap < 20:
+            tags.append(f"{dim}均衡")
+        elif gap > 60:
+            tags.append(f"{dim}极致")
+    if any(getattr(a, "value", None) == 5 for a in answers):
+        tags.append("立场坚定")
+    if any("尽管你整体偏向" in s for s in insight_list):
+        tags.append("反差发力")
+    tags = tags[:6]
+
+    dimensions_str = _dimensions_str()
+    extreme_traits = _extremes_str()
+    dynamic_insights = "；".join(insight_list[:3]) if insight_list else "暂无动态洞察"
+    dynamic_tags = "动态标签：" + (", ".join([f"[{t}]" for t in tags]) if tags else "[稳定作答]")
+
+    user_profile_context = f"""
+用户MBTI类型：{type_code}
+【维度数据】：{dimensions_str}
+【极值特质】：{extreme_traits}
+【行为标签】：{dynamic_tags}
+【动态洞察】：{dynamic_insights}
+请综合上述数据，忽略刻板印象，还原一个鲜活的人。
+""".strip()
+
+    system_prompt = f"""
+你是一位洞察人性幽暗与光辉的心理学大师，正在使用 DeepSeek-V3.2 模型进行深度侧写。
+{user_profile_context}
+
+【指令】
+1. 你的语言要像手术刀一样精准，剥开用户的社会面具，直指内心深处的矛盾与渴望。
+2. 结合给出的维度数据和极值特质进行推理，不要只罗列优缺点。
+3. 严禁输出任何开场白，严禁使用代码块。
+4. 【排版严格要求】：
+   - 所有标题（###）必须**顶格书写**，严禁在前面加空格，确保左对齐。
+   - **关键格式**：标题的井号与文字之间**只能有一个空格**（例如 `### 标题`），严禁出现两个空格或全角空格。
+   - 请务必使用 Markdown 加粗语法（如 **关键特质**）高亮文中那些直击灵魂、反直觉或最具冲击力的短句，每段至少包含 1-2 处高亮。
+
+【输出模版】
+### ️ 灵魂底色
+(用一个带有灰度色彩的意象，如“**暴风雨中的灯塔**”，描述该人格最底层的核心驱动力。约 100 字)
+
+###  镜像与阴影
+(指出用户常常欺骗自己的一点，以及外界误解最深的一点。用“世人皆以为...，殊不知...”的句式。约 150 字)
+
+###  给伤口的诗
+(针对该人格最容易受挫的软肋，写一段治愈且充满力量的短句。约 80 字)
+""".strip()
+
+    user_prompt = f"我的 MBTI 类型是：{type_code}。请开始你的深度解读。"
+
+    try:
+        api_key = os.getenv("MBTI_AI_API_KEY")
+        base_url = os.getenv("MBTI_AI_BASE_URL", "https://api.siliconflow.cn/v1")
+        model = os.getenv("MBTI_AI_MODEL", "deepseek-ai/DeepSeek-V3.2")
+        if not api_key:
+            raise RuntimeError("系统未配置 MBTI_AI_API_KEY")
+        if AsyncOpenAI is None:
+            raise RuntimeError("OpenAI SDK 不可用")
+
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        try:
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                stream=False,
+                timeout=60.0,
+            )
+        finally:
+            try:
+                await client.close()
+            except Exception:
+                pass
+
+        ai_text = ""
+        try:
+            ai_text = resp.choices[0].message.content or ""
+        except Exception:
+            ai_text = ""
+
+        if not ai_text.strip():
+            raise RuntimeError("AI 返回内容为空")
+
+        cleaned_md = _clean_ai_markdown(ai_text)
+        ai_content_html = _markdown_to_html(cleaned_md)
+    except Exception as e:
+        err = str(e).strip()
+        if len(err) > 240:
+            err = err[:240] + "..."
+        ai_content_html = _markdown_to_html(f"**❌ AI 生成失败**\n\n错误：{err}")
+
+    return templates.TemplateResponse(
+        request,
+        "partials/result_ai_content.html",
+        {"ai_content_html": ai_content_html},
     )
 
 
