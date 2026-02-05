@@ -613,10 +613,41 @@ def result_page(request: Request, share_token: str, db: Session = Depends(get_db
 def _clean_ai_markdown(md: str) -> str:
     text = (md or "").replace("TAGS_SHORT_READ_WARNING false", "").replace("TAGS_SHORT_READ_WARNING true", "")
     # Normalize headings: remove leading spaces before #'s, and normalize space after hashes.
-    text = re.sub(r"^\s+(#{1,6})", r"\1", text, flags=re.MULTILINE)
+    text = re.sub(r"^[ \t\u3000\u00A0]+(#{1,6})", r"\1", text, flags=re.MULTILINE)
     text = re.sub(r"(#{1,6})[\s\u3000\u00A0]+", r"\1 ", text, flags=re.MULTILINE)
     text = re.sub(r"(#{1,6} \*\*)[\s\u3000\u00A0]+", r"\1", text, flags=re.MULTILINE)
     return text.strip()
+
+
+def _stream_sanitize_markdown_chunks(chunks: object, *, carry_size: int = 96):
+    # Best-effort sanitizer that fixes headings even when whitespace/# are split across chunks.
+    # Keeps a small tail buffer to handle boundary cases.
+    tail = ""
+
+    async def _agen():
+        nonlocal tail
+        async for part in chunks:
+            s = str(part or "")
+            if not s:
+                continue
+            combined = tail + s
+            combined = combined.replace("TAGS_SHORT_READ_WARNING false", "").replace("TAGS_SHORT_READ_WARNING true", "")
+            combined = re.sub(r"(?m)^[ \t\u3000\u00A0]+(#{1,6})", r"\1", combined)
+            combined = re.sub(r"(?m)(#{1,6})[ \t\u3000\u00A0]+", r"\1 ", combined)
+            combined = re.sub(r"(?m)(#{1,6} \\*\\*)[ \t\u3000\u00A0]+", r"\1", combined)
+
+            if len(combined) <= carry_size:
+                tail = combined
+                continue
+
+            emit = combined[:-carry_size]
+            tail = combined[-carry_size:]
+            yield emit
+
+        if tail:
+            yield tail
+
+    return _agen()
 
 
 def _markdown_to_html(md: str) -> str:
@@ -772,7 +803,7 @@ async def result_ai_content(request: Request, share_token: str, db: Session = De
     base_url = os.getenv("MBTI_AI_BASE_URL", "https://api.siliconflow.cn/v1")
     model = os.getenv("MBTI_AI_MODEL", "deepseek-ai/DeepSeek-V3.2")
 
-    async def generator():
+    async def generator_raw():
         if not api_key:
             yield "\n\n**❌ AI 生成失败**\n\n错误：系统未配置 MBTI_AI_API_KEY\n"
             return
@@ -820,7 +851,7 @@ async def result_ai_content(request: Request, share_token: str, db: Session = De
                 pass
 
     return StreamingResponse(
-        generator(),
+        _stream_sanitize_markdown_chunks(generator_raw()),
         media_type="text/plain; charset=utf-8",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -1202,30 +1233,65 @@ async def analysis_card_content(request: Request, db: Session = Depends(get_db))
         if not isinstance(fun_data_obj, dict):
             raise ValueError("AI JSON 顶层不是对象")
 
+        # --- Sanitizer: tolerate common schema mistakes from the model ---
+        def _ensure_str(v: object, default: str = "") -> str:
+            if v is None:
+                return default
+            if isinstance(v, str):
+                return v.strip()
+            return str(v).strip()
+
         manual = fun_data_obj.get("manual")
+        if not isinstance(manual, dict):
+            manual = {}
+        do_list = manual.get("do_list")
+        dont_list = manual.get("dont_list")
+        manual["do_list"] = do_list if isinstance(do_list, list) else []
+        manual["dont_list"] = dont_list if isinstance(dont_list, list) else []
+        manual["recharge"] = _ensure_str(manual.get("recharge"), default="（生成失败）")
+
         war = fun_data_obj.get("war")
+        if not isinstance(war, dict):
+            war = {}
+        war["title"] = _ensure_str(war.get("title"), default="（生成失败）")
+        war["description"] = _ensure_str(war.get("description"), default="（生成失败）")
+
         relationships = fun_data_obj.get("relationships")
+        if isinstance(relationships, str):
+            relationships = {}
+        if not isinstance(relationships, dict):
+            relationships = {}
+
+        for key in ("soulmate", "nemesis"):
+            v = relationships.get(key)
+            if isinstance(v, str):
+                relationships[key] = {"mbti": "UNK", "role": "未知", "desc": v}
+            elif not isinstance(v, dict):
+                relationships[key] = {"mbti": "UNK", "role": "未知", "desc": "（生成失败）"}
+            else:
+                relationships[key] = {
+                    "mbti": _ensure_str(v.get("mbti"), default="UNK"),
+                    "role": _ensure_str(v.get("role"), default="未知"),
+                    "desc": _ensure_str(v.get("desc"), default="（生成失败）"),
+                }
+
         character = fun_data_obj.get("character")
-        if not isinstance(manual, dict) or not isinstance(war, dict):
-            raise ValueError("AI JSON 缺少 manual/war 对象")
-        if not isinstance(relationships, dict) or not isinstance(character, dict):
-            raise ValueError("AI JSON 缺少 relationships/character 对象")
-        if not isinstance(manual.get("do_list"), list) or not isinstance(manual.get("dont_list"), list):
-            raise ValueError("manual.do_list / manual.dont_list 必须是数组")
-        if not isinstance(manual.get("recharge"), str) or not manual.get("recharge"):
-            raise ValueError("manual.recharge 必须是非空字符串")
-        if not isinstance(war.get("title"), str) or not isinstance(war.get("description"), str):
-            raise ValueError("war.title / war.description 必须是字符串")
-        soulmate = relationships.get("soulmate") if isinstance(relationships, dict) else None
-        nemesis = relationships.get("nemesis") if isinstance(relationships, dict) else None
-        if not isinstance(soulmate, dict) or not isinstance(nemesis, dict):
-            raise ValueError("relationships.soulmate / relationships.nemesis 必须是对象")
-        if not isinstance(soulmate.get("mbti"), str) or not isinstance(soulmate.get("role"), str) or not isinstance(soulmate.get("desc"), str):
-            raise ValueError("relationships.soulmate 字段必须为字符串")
-        if not isinstance(nemesis.get("mbti"), str) or not isinstance(nemesis.get("role"), str) or not isinstance(nemesis.get("desc"), str):
-            raise ValueError("relationships.nemesis 字段必须为字符串")
-        if not isinstance(character.get("name"), str) or not isinstance(character.get("source"), str) or not isinstance(character.get("quote"), str) or not isinstance(character.get("desc"), str):
-            raise ValueError("character 字段必须为字符串")
+        if isinstance(character, str):
+            character = {"name": "未知", "source": "未知", "quote": "…", "desc": character}
+        if not isinstance(character, dict):
+            character = {}
+        character = {
+            "name": _ensure_str(character.get("name"), default="未知"),
+            "source": _ensure_str(character.get("source"), default="未知"),
+            "quote": _ensure_str(character.get("quote"), default="…"),
+            "desc": _ensure_str(character.get("desc"), default="（生成失败）"),
+        }
+
+        fun_data_obj["manual"] = manual
+        fun_data_obj["war"] = war
+        fun_data_obj["relationships"] = relationships
+        fun_data_obj["character"] = character
+        # ---------------------------------------------------------------
 
         fun_data = fun_data_obj
     except Exception as e:
