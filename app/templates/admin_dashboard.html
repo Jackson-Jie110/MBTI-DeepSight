@@ -77,7 +77,7 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-gray-50 text-xs uppercase text-gray-400 font-semibold">
-                            <th class="px-6 py-4">ID</th>
+                            <th class="px-6 py-4 w-20">序号</th>
                             <th class="px-6 py-4">时间</th>
                             <th class="px-6 py-4">MBTI</th>
                             <th class="px-6 py-4">评分</th>
@@ -88,7 +88,7 @@
                     <tbody class="divide-y divide-gray-50 text-sm" id="table-body">
                         {% for item in feedbacks %}
                         <tr class="hover:bg-purple-50/20 transition-colors group" id="row-{{ item.id }}" data-rating="{{ item.rating }}">
-                            <td class="px-6 py-4 font-mono text-gray-400 text-xs">#{{ item.id }}</td>
+                            <td class="px-6 py-4 font-mono text-gray-500 text-sm font-bold">{{ loop.index }}</td>
                             <td class="px-6 py-4 text-gray-500">{{ item.created_at.strftime('%m-%d %H:%M') if item.created_at else '未知' }}</td>
                             <td class="px-6 py-4">
                                 <span class="px-2 py-1 rounded bg-purple-50 text-purple-700 text-xs font-bold">

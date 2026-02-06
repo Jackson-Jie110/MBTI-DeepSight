@@ -76,16 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const content = contentInput ? contentInput.value : '';
 
-    const hiddenInput = document.getElementById('server-mbti-type');
-    let mbtiType = hiddenInput ? hiddenInput.value : '';
-
-    if (!mbtiType) {
+    let mbtiType = 'Unknown';
+    const typeElement = document.querySelector('.result-hero__typecode');
+    if (typeElement) {
+      mbtiType = typeElement.innerText.trim();
+    } else {
       const urlParams = new URLSearchParams(window.location.search);
-      mbtiType = urlParams.get('type');
-    }
-
-    if (!mbtiType) {
-      mbtiType = 'Unknown';
+      mbtiType = urlParams.get('type') || 'Unknown';
     }
 
     submitBtn.innerText = '提交中...';
