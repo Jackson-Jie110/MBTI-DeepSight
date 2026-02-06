@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户反馈控制台 | Admin Dashboard</title>
+    <title>用户反馈控制台</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%A7%A9</text></svg>">
     <style>
@@ -12,182 +12,190 @@
             -webkit-background-clip: text;
             color: transparent;
         }
+        /* 增加一点背景纹理或光晕，避免死白 */
+        body {
+            background-color: #f8fafc; /* slate-50 */
+            background-image: radial-gradient(circle at 50% 0%, #f3e8ff 0%, transparent 40%);
+        }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-700 font-sans min-h-screen">
+<body class="text-gray-700 font-sans min-h-screen">
 
-    <nav class="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-20">
+    <nav class="bg-white/80 backdrop-blur-md border-b border-purple-100 sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <span class="text-2xl">🧩</span>
+                <div class="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                    🧩
+                </div>
                 <div>
-                    <h1 class="text-xl font-bold gradient-text">用户反馈控制台</h1>
-                    <p class="text-xs text-gray-400">Listening to User Voices</p>
+                    <h1 class="text-lg font-bold text-gray-800">用户反馈控制台</h1>
+                    <p class="text-xs text-purple-500">Admin Dashboard</p>
                 </div>
             </div>
-            <a href="/" class="text-sm font-medium text-gray-500 hover:text-purple-600 transition-colors flex items-center gap-1">
-                <span>🏠</span> 返回首页
-            </a>
+            <div class="flex gap-4">
+                <a href="{{ request.url_for('export_feedbacks') }}?key={{ request.query_params.get('key', '') }}" class="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors shadow-sm">
+                    📤 导出 CSV
+                </a>
+                <a href="/" class="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                    ↩ 返回首页
+                </a>
+            </div>
         </div>
     </nav>
 
     <div class="max-w-7xl mx-auto px-6 py-10">
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-purple-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                <div class="absolute right-0 top-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                <div class="relative z-10 flex items-center gap-5">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center text-3xl shadow-inner">
-                        📝
-                    </div>
-                    <div>
-                        <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">累计收到反馈</div>
-                        <div class="text-4xl font-black text-gray-800">{{ total_count }} <span class="text-lg font-normal text-gray-400">条</span></div>
-                    </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-[0_4px_20px_-4px_rgba(147,51,234,0.1)] border border-purple-50 flex items-center gap-5">
+                <div class="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center text-3xl">📨</div>
+                <div>
+                    <div class="text-gray-400 text-xs font-bold uppercase tracking-wider">累计反馈</div>
+                    <div class="text-4xl font-black text-gray-800">{{ total_count }}</div>
                 </div>
             </div>
-
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-pink-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                <div class="absolute right-0 top-0 w-24 h-24 bg-pink-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                <div class="relative z-10 flex items-center gap-5">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-pink-100 to-pink-50 flex items-center justify-center text-3xl shadow-inner">
-                        ⭐
-                    </div>
-                    <div>
-                        <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">平均满意度</div>
-                        <div class="text-4xl font-black text-gray-800">{{ avg_rating }} <span class="text-lg font-normal text-gray-400">/ 5.0</span></div>
-                    </div>
+            <div class="bg-white p-6 rounded-2xl shadow-[0_4px_20px_-4px_rgba(219,39,119,0.1)] border border-pink-50 flex items-center gap-5">
+                <div class="w-16 h-16 rounded-2xl bg-pink-50 flex items-center justify-center text-3xl">⭐</div>
+                <div>
+                    <div class="text-gray-400 text-xs font-bold uppercase tracking-wider">平均评分</div>
+                    <div class="text-4xl font-black text-gray-800">{{ avg_rating }}</div>
                 </div>
             </div>
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            
-            <div class="px-6 py-4 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/30">
-                <h3 class="font-bold text-gray-700 flex items-center gap-2">
-                    🧾 反馈列表
-                    <span class="text-xs font-normal text-gray-400 bg-white px-2 py-0.5 rounded-full border border-gray-100" id="row-count">{{ total_count }} 条</span>
-                </h3>
-                
-                <div class="flex gap-3">
-                    <select id="filter-rating" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-gray-600">
-                        <option value="all">所有评分</option>
-                        <option value="5">5星 (好评)</option>
-                        <option value="low">3星及以下 (需关注)</option>
-                    </select>
-
-                    <select id="sort-time" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-gray-600">
-                        <option value="desc">最新优先</option>
-                        <option value="asc">最早优先</option>
+            <div class="px-6 py-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                <h3 class="font-bold text-gray-700">反馈列表 ({{ total_count }})</h3>
+                <div class="flex gap-2">
+                     <select id="filter-rating" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-purple-400">
+                        <option value="all">全部评分</option>
+                        <option value="5">仅看 5 星</option>
+                        <option value="low">3 星以下</option>
                     </select>
                 </div>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse" id="feedback-table">
+                <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-400 font-semibold tracking-wider">
-                            <th class="px-6 py-4 w-20">编号</th>
-                            <th class="px-6 py-4 w-40">提交时间</th>
-                            <th class="px-6 py-4 w-32">MBTI类型</th>
-                            <th class="px-6 py-4 w-40">满意度</th>
-                            <th class="px-6 py-4">反馈详情</th>
+                        <tr class="bg-gray-50 text-xs uppercase text-gray-400 font-semibold">
+                            <th class="px-6 py-4">ID</th>
+                            <th class="px-6 py-4">时间</th>
+                            <th class="px-6 py-4">MBTI</th>
+                            <th class="px-6 py-4">评分</th>
+                            <th class="px-6 py-4 w-1/3">内容</th>
+                            <th class="px-6 py-4 text-right">操作</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-50 text-sm" id="table-body">
                         {% for item in feedbacks %}
-                        <tr class="hover:bg-purple-50/30 transition-colors group" 
-                            data-rating="{{ item.rating }}" 
-                            data-timestamp="{{ item.created_at.timestamp() if item.created_at else 0 }}">
-                            
+                        <tr class="hover:bg-purple-50/20 transition-colors group" id="row-{{ item.id }}" data-rating="{{ item.rating }}">
                             <td class="px-6 py-4 font-mono text-gray-400 text-xs">#{{ item.id }}</td>
-                            
-                            <td class="px-6 py-4 text-gray-500 whitespace-nowrap">
-                                {{ item.created_at.strftime('%m-%d %H:%M') if item.created_at else '未记录' }}
-                            </td>
-                            
+                            <td class="px-6 py-4 text-gray-500">{{ item.created_at.strftime('%m-%d %H:%M') if item.created_at else '未知' }}</td>
                             <td class="px-6 py-4">
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-600 group-hover:bg-purple-100 group-hover:text-purple-700 transition-colors">
-                                    {{ item.mbti_type or '未记录' }}
+                                <span class="px-2 py-1 rounded bg-purple-50 text-purple-700 text-xs font-bold">
+                                    {{ item.mbti_type or '未知' }}
                                 </span>
                             </td>
-                            
                             <td class="px-6 py-4">
-                                <div class="flex items-center gap-1">
-                                    <span class="font-bold {{ 'text-yellow-400' if item.rating >= 4 else 'text-gray-400' }}">{{ item.rating }}.0</span>
-                                    <div class="flex text-xs">
-                                        {% for i in range(item.rating) %}<span class="text-yellow-400">★</span>{% endfor %}
-                                        {% for i in range(5 - item.rating) %}<span class="text-gray-200">★</span>{% endfor %}
-                                    </div>
-                                </div>
+                                <span class="text-yellow-400 tracking-widest">{{ '★' * item.rating }}</span><span class="text-gray-200 tracking-widest">{{ '★' * (5 - item.rating) }}</span>
                             </td>
-                            
-                            <td class="px-6 py-4 text-gray-700 leading-relaxed">
-                                {% if item.content %}
-                                    {{ item.content }}
-                                {% else %}
-                                    <span class="text-gray-300 italic text-xs">用户未填写文字详情</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="5" class="px-6 py-20 text-center">
-                                <div class="inline-block p-4 rounded-full bg-gray-50 text-4xl mb-3">📭</div>
-                                <p class="text-gray-400">暂无反馈数据</p>
+                            <td class="px-6 py-4 text-gray-700">{{ item.content or '-' }}</td>
+                            <td class="px-6 py-4 text-right">
+                                <button onclick="confirmDelete({{ item.id }})" class="text-gray-300 hover:text-red-500 transition-colors p-2" title="删除">
+                                    🗑️
+                                </button>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 w-96 shadow-2xl transform transition-all scale-95 opacity-0" id="delete-card">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">确认删除？</h3>
+            <p class="text-gray-500 text-sm mb-4">此操作无法撤销，确定要删除这条反馈吗？</p>
             
-            <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
-                <span>🔒 安全区域: 仅管理员可见</span>
-                <span>Designed for Jackson</span>
+            <div class="flex items-center mb-6">
+                <input type="checkbox" id="dont-ask-today" class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                <label for="dont-ask-today" class="ml-2 text-sm text-gray-600">今日不再提醒</label>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">取消</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm shadow-md">确认删除</button>
             </div>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const filterRating = document.getElementById('filter-rating');
-            const sortTime = document.getElementById('sort-time');
-            const tableBody = document.getElementById('table-body');
-            const rows = Array.from(tableBody.querySelectorAll('tr[data-rating]'));
-            const countLabel = document.getElementById('row-count');
+        let deleteTargetId = null;
+        const modal = document.getElementById('delete-modal');
+        const card = document.getElementById('delete-card');
+        const confirmBtn = document.getElementById('confirm-delete-btn');
+        const checkbox = document.getElementById('dont-ask-today');
 
-            function updateTable() {
-                const ratingVal = filterRating.value;
-                const sortVal = sortTime.value;
-                
-                const visibleRows = rows.filter(row => {
-                    const r = parseInt(row.getAttribute('data-rating'));
-                    if (ratingVal === 'all') return true;
-                    if (ratingVal === '5') return r === 5;
-                    if (ratingVal === 'low') return r <= 3;
-                    return true;
-                });
+        function confirmDelete(id) {
+            deleteTargetId = id;
 
-                visibleRows.sort((a, b) => {
-                    const tA = parseFloat(a.getAttribute('data-timestamp'));
-                    const tB = parseFloat(b.getAttribute('data-timestamp'));
-                    return sortVal === 'desc' ? tB - tA : tA - tB;
-                });
-
-                tableBody.innerHTML = '';
-
-                if (visibleRows.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-20 text-center"><div class="inline-block p-4 rounded-full bg-gray-50 text-4xl mb-3">🫥</div><p class="text-gray-400">当前筛选条件下暂无数据</p></td></tr>';
-                } else {
-                    visibleRows.forEach(row => tableBody.appendChild(row));
-                }
-
-                countLabel.innerText = `${visibleRows.length} 条`;
+            const suppressUntil = localStorage.getItem('suppressDeleteConfirm');
+            if (suppressUntil && new Date().getTime() < parseInt(suppressUntil)) {
+                executeDelete(id);
+                return;
             }
 
-            filterRating.addEventListener('change', updateTable);
-            sortTime.addEventListener('change', updateTable);
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                card.classList.remove('scale-95', 'opacity-0');
+                card.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeDeleteModal() {
+            card.classList.remove('scale-100', 'opacity-100');
+            card.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        async function executeDelete(id) {
+            const currentKey = new URLSearchParams(window.location.search).get('key');
+            try {
+                const res = await fetch(`/admin/delete_feedback/${id}?key=${currentKey}`, { method: 'DELETE' });
+                if (res.ok) {
+                    const row = document.getElementById(`row-${id}`);
+                    if (row) {
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 300);
+                    }
+                } else {
+                    alert('删除失败');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络错误');
+            }
+            closeDeleteModal();
+        }
+
+        confirmBtn.onclick = function() {
+            if (checkbox.checked) {
+                const tomorrow = new Date().getTime() + 24 * 60 * 60 * 1000;
+                localStorage.setItem('suppressDeleteConfirm', tomorrow);
+            }
+            if (deleteTargetId) executeDelete(deleteTargetId);
+        };
+
+        document.getElementById('filter-rating').addEventListener('change', function(e) {
+            const val = e.target.value;
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const r = parseInt(row.getAttribute('data-rating'));
+                if (val === 'all') row.style.display = '';
+                else if (val === '5' && r === 5) row.style.display = '';
+                else if (val === 'low' && r <= 3) row.style.display = '';
+                else row.style.display = 'none';
+            });
         });
     </script>
 </body>

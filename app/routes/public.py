@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import csv
 import html
 import hashlib
+import io
 import json
 import os
 import re
@@ -1707,4 +1709,46 @@ async def admin_dashboard(request: Request, key: str | None = Query(None), db: S
             "total_count": total_count,
             "avg_rating": avg_rating,
         },
+    )
+
+
+@router.delete("/admin/delete_feedback/{feedback_id}", response_class=JSONResponse)
+async def delete_feedback(feedback_id: int, key: str | None = Query(None), db: Session = Depends(get_db)):
+    if key != "jackson_admin":
+        return JSONResponse({"error": "无权操作"}, status_code=403)
+
+    feedback = db.query(Feedback).filter(Feedback.id == feedback_id).one_or_none()
+    if feedback is None:
+        return JSONResponse({"error": "反馈不存在"}, status_code=404)
+
+    db.delete(feedback)
+    db.commit()
+    return JSONResponse({"success": True, "message": "删除成功"}, status_code=200)
+
+
+@router.get("/admin/export_feedbacks", response_class=HTMLResponse)
+async def export_feedbacks(key: str | None = Query(None), db: Session = Depends(get_db)):
+    if key != "jackson_admin":
+        return HTMLResponse("403 Forbidden", status_code=403)
+
+    feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
+
+    si = io.StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["ID", "Time", "MBTI Type", "Rating", "Content"])
+    for item in feedbacks:
+        writer.writerow(
+            [
+                item.id,
+                item.created_at.isoformat() if item.created_at else "",
+                item.mbti_type or "",
+                item.rating,
+                item.content or "",
+            ]
+        )
+
+    return StreamingResponse(
+        iter([si.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="feedbacks_export.csv"'},
     )

@@ -75,7 +75,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const content = contentInput ? contentInput.value : '';
-    const mbtiType = new URLSearchParams(window.location.search).get('type');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    let mbtiType = urlParams.get('type');
+
+    if (!mbtiType) {
+      console.warn('MBTI type not found in URL');
+      mbtiType = 'Unknown';
+    }
 
     submitBtn.innerText = '提交中...';
     submitBtn.disabled = true;
