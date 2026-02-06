@@ -1,93 +1,194 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Feedback Dashboard</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户反馈控制台 | Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%A7%A9</text></svg>"
-    />
-  </head>
-  <body class="bg-gray-50 text-gray-800 font-sans min-h-screen p-6">
-    <div class="max-w-6xl mx-auto">
-      <div class="flex justify-between items-center mb-8">
-        <div>
-          <h1 class="text-3xl font-bold text-gray-900 tracking-tight">用户反馈控制台</h1>
-          <p class="text-gray-500 text-sm mt-1">Listening to the User's Voice</p>
-        </div>
-        <a href="/" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">← 返回首页</a>
-      </div>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%A7%A9</text></svg>">
+    <style>
+        .gradient-text {
+            background-image: linear-gradient(90deg, #9333ea, #db2777);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-700 font-sans min-h-screen">
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center">
-          <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-2xl mr-4">🧾</div>
-          <div>
-            <div class="text-gray-400 text-xs font-bold uppercase tracking-wider">Total Feedbacks</div>
-            <div class="text-3xl font-extrabold text-gray-900">{{ total_count }}</div>
-          </div>
-        </div>
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center">
-          <div class="w-12 h-12 rounded-full bg-yellow-50 flex items-center justify-center text-xl mr-4">⭐</div>
-          <div>
-            <div class="text-gray-400 text-xs font-bold uppercase tracking-wider">Average Rating</div>
-            <div class="text-3xl font-extrabold text-gray-900">
-              {{ avg_rating }} <span class="text-lg text-gray-400 font-normal">/ 5.0</span>
+    <nav class="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🧩</span>
+                <div>
+                    <h1 class="text-xl font-bold gradient-text">用户反馈控制台</h1>
+                    <p class="text-xs text-gray-400">Listening to User Voices</p>
+                </div>
             </div>
-          </div>
+            <a href="/" class="text-sm font-medium text-gray-500 hover:text-purple-600 transition-colors flex items-center gap-1">
+                <span>🏠</span> 返回首页
+            </a>
         </div>
-      </div>
+    </nav>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="bg-gray-50/50 border-b border-gray-100 text-xs uppercase text-gray-400 font-semibold tracking-wider">
-                <th class="px-6 py-4">ID</th>
-                <th class="px-6 py-4">Time</th>
-                <th class="px-6 py-4">Type</th>
-                <th class="px-6 py-4">Rating</th>
-                <th class="px-6 py-4 w-1/2">Content</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-50 text-sm">
-              {% for item in feedbacks %}
-              <tr class="hover:bg-gray-50 transition-colors {{ 'bg-red-50/60' if item.rating <= 2 else '' }}">
-                <td class="px-6 py-4 font-mono text-gray-400">#{{ item.id }}</td>
-                <td class="px-6 py-4 text-gray-500 whitespace-nowrap">
-                  {{ item.created_at.strftime('%m-%d %H:%M') if item.created_at else 'N/A' }}
-                </td>
-                <td class="px-6 py-4">
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    {{ item.mbti_type or 'N/A' }}
-                  </span>
-                </td>
-                <td class="px-6 py-4 text-yellow-400 tracking-widest">{{ '★' * item.rating }}{{ '☆' * (5 - item.rating) }}</td>
-                <td class="px-6 py-4 text-gray-700 leading-relaxed">
-                  {% if item.content %}
-                    {{ item.content }}
-                  {% else %}
-                    <span class="text-gray-300 italic">No content</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="5" class="px-6 py-16 text-center text-gray-400">
-                  <div class="text-4xl mb-2">📭</div>
-                  暂无反馈数据
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+    <div class="max-w-7xl mx-auto px-6 py-10">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-purple-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute right-0 top-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                <div class="relative z-10 flex items-center gap-5">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center text-3xl shadow-inner">
+                        📝
+                    </div>
+                    <div>
+                        <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">累计收到反馈</div>
+                        <div class="text-4xl font-black text-gray-800">{{ total_count }} <span class="text-lg font-normal text-gray-400">条</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-pink-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute right-0 top-0 w-24 h-24 bg-pink-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                <div class="relative z-10 flex items-center gap-5">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-pink-100 to-pink-50 flex items-center justify-center text-3xl shadow-inner">
+                        ⭐
+                    </div>
+                    <div>
+                        <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">平均满意度</div>
+                        <div class="text-4xl font-black text-gray-800">{{ avg_rating }} <span class="text-lg font-normal text-gray-400">/ 5.0</span></div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
 
-      <div class="mt-8 text-center">
-        <span class="inline-block px-3 py-1 bg-gray-100 text-gray-400 text-xs rounded-full">🔒 Admin Area</span>
-      </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            
+            <div class="px-6 py-4 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/30">
+                <h3 class="font-bold text-gray-700 flex items-center gap-2">
+                    🧾 反馈列表
+                    <span class="text-xs font-normal text-gray-400 bg-white px-2 py-0.5 rounded-full border border-gray-100" id="row-count">{{ total_count }} 条</span>
+                </h3>
+                
+                <div class="flex gap-3">
+                    <select id="filter-rating" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-gray-600">
+                        <option value="all">所有评分</option>
+                        <option value="5">5星 (好评)</option>
+                        <option value="low">3星及以下 (需关注)</option>
+                    </select>
+
+                    <select id="sort-time" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-gray-600">
+                        <option value="desc">最新优先</option>
+                        <option value="asc">最早优先</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="feedback-table">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-400 font-semibold tracking-wider">
+                            <th class="px-6 py-4 w-20">编号</th>
+                            <th class="px-6 py-4 w-40">提交时间</th>
+                            <th class="px-6 py-4 w-32">MBTI类型</th>
+                            <th class="px-6 py-4 w-40">满意度</th>
+                            <th class="px-6 py-4">反馈详情</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 text-sm" id="table-body">
+                        {% for item in feedbacks %}
+                        <tr class="hover:bg-purple-50/30 transition-colors group" 
+                            data-rating="{{ item.rating }}" 
+                            data-timestamp="{{ item.created_at.timestamp() if item.created_at else 0 }}">
+                            
+                            <td class="px-6 py-4 font-mono text-gray-400 text-xs">#{{ item.id }}</td>
+                            
+                            <td class="px-6 py-4 text-gray-500 whitespace-nowrap">
+                                {{ item.created_at.strftime('%m-%d %H:%M') if item.created_at else '未记录' }}
+                            </td>
+                            
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-600 group-hover:bg-purple-100 group-hover:text-purple-700 transition-colors">
+                                    {{ item.mbti_type or '未记录' }}
+                                </span>
+                            </td>
+                            
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-1">
+                                    <span class="font-bold {{ 'text-yellow-400' if item.rating >= 4 else 'text-gray-400' }}">{{ item.rating }}.0</span>
+                                    <div class="flex text-xs">
+                                        {% for i in range(item.rating) %}<span class="text-yellow-400">★</span>{% endfor %}
+                                        {% for i in range(5 - item.rating) %}<span class="text-gray-200">★</span>{% endfor %}
+                                    </div>
+                                </div>
+                            </td>
+                            
+                            <td class="px-6 py-4 text-gray-700 leading-relaxed">
+                                {% if item.content %}
+                                    {{ item.content }}
+                                {% else %}
+                                    <span class="text-gray-300 italic text-xs">用户未填写文字详情</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-20 text-center">
+                                <div class="inline-block p-4 rounded-full bg-gray-50 text-4xl mb-3">📭</div>
+                                <p class="text-gray-400">暂无反馈数据</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
+                <span>🔒 安全区域: 仅管理员可见</span>
+                <span>Designed for Jackson</span>
+            </div>
+        </div>
     </div>
-  </body>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterRating = document.getElementById('filter-rating');
+            const sortTime = document.getElementById('sort-time');
+            const tableBody = document.getElementById('table-body');
+            const rows = Array.from(tableBody.querySelectorAll('tr[data-rating]'));
+            const countLabel = document.getElementById('row-count');
+
+            function updateTable() {
+                const ratingVal = filterRating.value;
+                const sortVal = sortTime.value;
+                
+                const visibleRows = rows.filter(row => {
+                    const r = parseInt(row.getAttribute('data-rating'));
+                    if (ratingVal === 'all') return true;
+                    if (ratingVal === '5') return r === 5;
+                    if (ratingVal === 'low') return r <= 3;
+                    return true;
+                });
+
+                visibleRows.sort((a, b) => {
+                    const tA = parseFloat(a.getAttribute('data-timestamp'));
+                    const tB = parseFloat(b.getAttribute('data-timestamp'));
+                    return sortVal === 'desc' ? tB - tA : tA - tB;
+                });
+
+                tableBody.innerHTML = '';
+
+                if (visibleRows.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-20 text-center"><div class="inline-block p-4 rounded-full bg-gray-50 text-4xl mb-3">🫥</div><p class="text-gray-400">当前筛选条件下暂无数据</p></td></tr>';
+                } else {
+                    visibleRows.forEach(row => tableBody.appendChild(row));
+                }
+
+                countLabel.innerText = `${visibleRows.length} 条`;
+            }
+
+            filterRating.addEventListener('change', updateTable);
+            sortTime.addEventListener('change', updateTable);
+        });
+    </script>
+</body>
 </html>
