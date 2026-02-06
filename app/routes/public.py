@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import csv
 import html
 import hashlib
-import io
 import json
 import os
 import re
 import traceback
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -16,6 +15,7 @@ from fastapi import APIRouter, Depends, Form, Request, Query
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from openpyxl import Workbook
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -1726,29 +1726,43 @@ async def delete_feedback(feedback_id: int, key: str | None = Query(None), db: S
     return JSONResponse({"success": True, "message": "删除成功"}, status_code=200)
 
 
-@router.get("/admin/export_feedbacks", response_class=HTMLResponse)
+@router.get("/admin/export_feedbacks")
 async def export_feedbacks(key: str | None = Query(None), db: Session = Depends(get_db)):
     if key != "jackson_admin":
         return HTMLResponse("403 Forbidden", status_code=403)
 
     feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
 
-    si = io.StringIO()
-    writer = csv.writer(si)
-    writer.writerow(["ID", "Time", "MBTI Type", "Rating", "Content"])
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "用户反馈"
+
+    worksheet.append(["ID", "提交时间", "MBTI类型", "评分", "反馈详情"])
+
     for item in feedbacks:
-        writer.writerow(
+        created_at = item.created_at.strftime("%Y-%m-%d %H:%M:%S") if item.created_at else ""
+        worksheet.append(
             [
                 item.id,
-                item.created_at.isoformat() if item.created_at else "",
+                created_at,
                 item.mbti_type or "",
                 item.rating,
                 item.content or "",
             ]
         )
 
+    worksheet.column_dimensions["A"].width = 8
+    worksheet.column_dimensions["B"].width = 22
+    worksheet.column_dimensions["C"].width = 14
+    worksheet.column_dimensions["D"].width = 8
+    worksheet.column_dimensions["E"].width = 60
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
     return StreamingResponse(
-        iter([si.getvalue()]),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="feedbacks_export.csv"'},
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="user_feedbacks.xlsx"'},
     )
