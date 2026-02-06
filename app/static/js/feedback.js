@@ -76,11 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const content = contentInput ? contentInput.value : '';
 
-    const urlParams = new URLSearchParams(window.location.search);
-    let mbtiType = urlParams.get('type');
+    const hiddenInput = document.getElementById('server-mbti-type');
+    let mbtiType = hiddenInput ? hiddenInput.value : '';
 
     if (!mbtiType) {
-      console.warn('MBTI type not found in URL');
+      const urlParams = new URLSearchParams(window.location.search);
+      mbtiType = urlParams.get('type');
+    }
+
+    if (!mbtiType) {
       mbtiType = 'Unknown';
     }
 
