@@ -1,35 +1,11 @@
-window.openFeedbackModal = function openFeedbackModal() {
-  const modal = document.getElementById('feedback-modal');
-  const card = document.getElementById('feedback-card');
-  const select = document.getElementById('feedback-mbti-select');
-  if (!modal || !card) {
-    return;
-  }
-
-  let cachedType = localStorage.getItem('user_mbti_cache');
-  if (!cachedType) {
-    const typeEl = document.querySelector('.result-hero__typecode');
-    if (typeEl) {
-      cachedType = typeEl.innerText.trim();
-    }
-  }
-
-  if (cachedType && select) {
-    const options = Array.from(select.options).map((option) => option.value);
-    if (options.includes(cachedType)) {
-      select.value = cachedType;
-    }
-  }
-
-  modal.classList.remove('hidden');
-  setTimeout(() => {
-    modal.classList.remove('opacity-0');
-    card.classList.remove('scale-95');
-    card.classList.add('scale-100');
-  }, 10);
-};
-
 document.addEventListener('DOMContentLoaded', () => {
+  const MBTI_TYPES = [
+    'INTJ', 'INTP', 'ENTJ', 'ENTP',
+    'INFJ', 'INFP', 'ENFJ', 'ENFP',
+    'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ',
+    'ISTP', 'ISFP', 'ESTP', 'ESFP',
+  ];
+
   const modal = document.getElementById('feedback-modal');
   const card = document.getElementById('feedback-card');
   const btn = document.getElementById('feedback-btn');
@@ -44,6 +20,48 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let currentRating = 0;
+
+  function detectMBTI() {
+    const typeEl = document.querySelector('.result-hero__typecode');
+    if (typeEl) {
+      const text = typeEl.innerText.trim().toUpperCase();
+      if (MBTI_TYPES.includes(text)) {
+        return text;
+      }
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlType = urlParams.get('type');
+    if (urlType && MBTI_TYPES.includes(urlType.toUpperCase())) {
+      return urlType.toUpperCase();
+    }
+
+    const candidates = document.querySelectorAll('span, h1, h2, div');
+    for (const element of candidates) {
+      const txt = element.innerText.trim().toUpperCase();
+      if (MBTI_TYPES.includes(txt) && element.innerText.length < 10) {
+        return txt;
+      }
+    }
+
+    return null;
+  }
+
+  let attempts = 0;
+  const maxAttempts = 20;
+  const poller = setInterval(() => {
+    const type = detectMBTI();
+    if (type) {
+      console.log('✅ MBTI Detected via Polling:', type);
+      localStorage.setItem('user_mbti_cache', type);
+      clearInterval(poller);
+    } else {
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        clearInterval(poller);
+      }
+    }
+  }, 500);
 
   function hideModal() {
     modal.classList.add('opacity-0');
@@ -72,6 +90,26 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.innerText = '提交反馈';
     submitBtn.disabled = false;
   }
+
+  window.openFeedbackModal = function openFeedbackModal() {
+    let finalType = localStorage.getItem('user_mbti_cache');
+    if (!finalType) {
+      finalType = detectMBTI();
+    }
+
+    if (finalType) {
+      mbtiSelect.value = finalType;
+    } else {
+      mbtiSelect.value = 'Unknown';
+    }
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      modal.classList.remove('opacity-0');
+      card.classList.remove('scale-95');
+      card.classList.add('scale-100');
+    }, 10);
+  };
 
   if (btn) {
     btn.addEventListener('click', window.openFeedbackModal);
