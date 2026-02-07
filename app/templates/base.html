@@ -142,7 +142,15 @@
     </script>
 
     <div id="ai-error-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-gray-900/60 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl p-8 w-[90%] max-w-sm text-center shadow-2xl transform scale-100 transition-all">
+      <div class="bg-white rounded-2xl p-8 w-[90%] max-w-sm text-center shadow-2xl transform scale-100 transition-all relative">
+        <button
+          id="ai-error-modal-close"
+          type="button"
+          class="absolute top-3 right-3 w-8 h-8 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+          aria-label="关闭错误提示"
+        >
+          ×
+        </button>
         <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
           ⚠️
         </div>
@@ -162,6 +170,30 @@
         const modal = document.getElementById("ai-error-modal");
         if (modal) modal.classList.remove("hidden");
       };
+
+      window.hideAIErrorModal = function () {
+        const modal = document.getElementById("ai-error-modal");
+        if (modal) modal.classList.add("hidden");
+      };
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const modal = document.getElementById("ai-error-modal");
+        const closeBtn = document.getElementById("ai-error-modal-close");
+
+        if (closeBtn) {
+          closeBtn.addEventListener("click", () => {
+            window.hideAIErrorModal?.();
+          });
+        }
+
+        if (modal) {
+          modal.addEventListener("click", (event) => {
+            if (event.target === modal) {
+              window.hideAIErrorModal?.();
+            }
+          });
+        }
+      });
     </script>
   </body>
 </html>

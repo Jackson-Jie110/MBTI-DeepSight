@@ -13,6 +13,8 @@ function cleanMarkdownText(text) {
   return String(text)
     // Strip known dirty tag
     .replace(/TAGS_SHORT_READ_WARNING\s+(true|false)\s*/g, "")
+    // Strip internal AI error marker (used for front-end detection)
+    .replace(/\s*AI_GENERATION_FAILED\s*/g, "")
     // 1) remove leading whitespace before headings
     .replace(/^\s+(#{1,6})/gm, "$1")
     // 2) normalize heading spaces (including full-width and nbsp)
@@ -64,6 +66,7 @@ async function loadStream(url, targetId, loadingId, payload = null, options = nu
     const decoder = new TextDecoder("utf-8");
     let buffer = "";
     let hasShown = false;
+    let hasTriggeredStreamError = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -72,6 +75,20 @@ async function loadStream(url, targetId, loadingId, payload = null, options = nu
       if (!chunk) continue;
 
       buffer += chunk;
+
+      if (!hasTriggeredStreamError) {
+        const hasErrorMarker = buffer.includes("AI_GENERATION_FAILED") || buffer.includes("❌ AI 生成失败");
+        if (hasErrorMarker) {
+          hasTriggeredStreamError = true;
+          if (onError) {
+            try {
+              onError(new Error("AI_GENERATION_FAILED"));
+            } catch {
+              // ignore callback errors
+            }
+          }
+        }
+      }
 
       if (!hasShown) {
         hasShown = true;
