@@ -193,6 +193,15 @@
             }
           });
         }
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape") {
+            return;
+          }
+          if (modal && !modal.classList.contains("hidden")) {
+            window.hideAIErrorModal?.();
+          }
+        });
       });
     </script>
   </body>
