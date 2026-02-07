@@ -87,7 +87,7 @@
             <div class="px-6 pt-5 pb-3 border-b border-gray-100 bg-gray-50/40">
                 <div class="inline-flex bg-white border border-gray-200 rounded-xl p-1" role="tablist" aria-label="控制台选项卡">
                     <button
-                        id="tab-feedback"
+                        id="tab-btn-feedback"
                         class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-purple-600 to-pink-600 text-white cursor-pointer"
                         data-target="panel-feedback"
                         type="button"
@@ -95,7 +95,7 @@
                         用户反馈列表
                     </button>
                     <button
-                        id="tab-errors"
+                        id="tab-btn-errors"
                         class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-gray-500 hover:text-gray-700 cursor-pointer"
                         data-target="panel-errors"
                         type="button"
@@ -171,7 +171,7 @@
                     <div class="flex items-center gap-2">
                         {% if feedbacks.has_prev %}
                         <a
-                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.prev_num }}&page_error={{ error_logs.page }}"
+                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.prev_num }}&page_error={{ error_logs.page }}&active_tab=feedback"
                             class="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm hover:bg-gray-100 transition-colors"
                         >上一页</a>
                         {% else %}
@@ -180,14 +180,14 @@
 
                         {% for p in range(1, feedbacks.pages + 1) %}
                         <a
-                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ p }}&page_error={{ error_logs.page }}"
+                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ p }}&page_error={{ error_logs.page }}&active_tab=feedback"
                             class="px-3 py-1.5 rounded-lg text-sm border {{ 'bg-purple-600 border-purple-600 text-white' if p == feedbacks.page else 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100' }} transition-colors"
                         >{{ p }}</a>
                         {% endfor %}
 
                         {% if feedbacks.has_next %}
                         <a
-                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.next_num }}&page_error={{ error_logs.page }}"
+                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.next_num }}&page_error={{ error_logs.page }}&active_tab=feedback"
                             class="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm hover:bg-gray-100 transition-colors"
                         >下一页</a>
                         {% else %}
@@ -262,7 +262,7 @@
                     <div class="flex items-center gap-2">
                         {% if error_logs.has_prev %}
                         <a
-                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.page }}&page_error={{ error_logs.prev_num }}"
+                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.page }}&page_error={{ error_logs.prev_num }}&active_tab=errors"
                             class="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 text-sm hover:bg-red-50 transition-colors"
                         >上一页</a>
                         {% else %}
@@ -271,14 +271,14 @@
 
                         {% for p in range(1, error_logs.pages + 1) %}
                         <a
-                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.page }}&page_error={{ p }}"
+                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.page }}&page_error={{ p }}&active_tab=errors"
                             class="px-3 py-1.5 rounded-lg text-sm border {{ 'bg-red-500 border-red-500 text-white' if p == error_logs.page else 'bg-white border-red-200 text-red-600 hover:bg-red-50' }} transition-colors"
                         >{{ p }}</a>
                         {% endfor %}
 
                         {% if error_logs.has_next %}
                         <a
-                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.page }}&page_error={{ error_logs.next_num }}"
+                            href="{{ request.url.path }}?key={{ request.query_params.get('key', '') }}&page_feedback={{ feedbacks.page }}&page_error={{ error_logs.next_num }}&active_tab=errors"
                             class="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 text-sm hover:bg-red-50 transition-colors"
                         >下一页</a>
                         {% else %}
@@ -521,7 +521,17 @@
             }
 
             refreshRowIndexes();
-            switchTab('panel-feedback');
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const activeTab = urlParams.get('active_tab');
+            const feedbackTabBtn = document.getElementById('tab-btn-feedback');
+            const errorTabBtn = document.getElementById('tab-btn-errors');
+
+            if (activeTab === 'errors') {
+                errorTabBtn?.click();
+            } else {
+                feedbackTabBtn?.click();
+            }
         });
 
         async function deleteErrorLog(logId) {
