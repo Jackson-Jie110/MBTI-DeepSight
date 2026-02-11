@@ -41,8 +41,6 @@
 
 ## 🖼️ 界面展示 (Screenshots)
 
-> 请将截图放到 `docs/screenshots/`（或你习惯的目录），并替换下方链接。
-
 - 首页（模式选择）  
   ![首页](docs/screenshots/home.png)
 - 测试页（一题一页 + 5级量表）  
@@ -50,6 +48,7 @@
 - 结果页（类型报告 + AI 流式解读）  
   ![结果页](docs/screenshots/result1.png)
   ![结果页](docs/screenshots/result2.png)
+  ![结果页](docs/screenshots/result3.png)
 - 后台管理（反馈/报错双看板）  
   ![后台管理](docs/screenshots/admin-dashboard.png)
 
@@ -88,7 +87,7 @@
 ### 1) 克隆项目
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Jackson-Jie110/MBTI
 cd MBTI
 ```
 
