@@ -1,4 +1,4 @@
-# NebulaMBTI · 人格解码实验室
+# MBTI DeepSight · 人格解码实验室
 
 > 从答题到 AI 侧写，一次完成可分享、可运营、可观测的 MBTI 在线测评闭环。
 
@@ -13,7 +13,7 @@
 
 ## 📖 项目介绍 (Introduction)
 
-`NebulaMBTI` 是一个基于 FastAPI + Jinja2 的在线 MBTI 测试系统，覆盖「开始测试 → 渐进答题 → 结果生成 → AI 深度解读 → 用户反馈 → 后台运营」完整链路。
+`MBTI DeepSight` 是一个基于 FastAPI + Jinja2 的在线 MBTI 测试系统，覆盖「开始测试 → 渐进答题 → 结果生成 → AI 深度解读 → 用户反馈 → 后台运营」完整链路。
 
 它解决了常见 MBTI 小工具的三个痛点：
 
@@ -48,7 +48,8 @@
 - 测试页（一题一页 + 5级量表）  
   ![测试页](docs/screenshots/test.png)
 - 结果页（类型报告 + AI 流式解读）  
-  ![结果页](docs/screenshots/result.png)
+  ![结果页](docs/screenshots/result1.png)
+  ![结果页](docs/screenshots/result2.png)
 - 后台管理（反馈/报错双看板）  
   ![后台管理](docs/screenshots/admin-dashboard.png)
 
